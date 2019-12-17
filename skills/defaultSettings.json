@@ -1,0 +1,9 @@
+{
+    "energyConsumption": {
+        "type": "instant", //instant, drain
+        "amount": 0 //Positive numbers (% of energy drained)
+    },
+    "disableSolidHitbox": false,
+    "stopPassiveVisuals": false,
+    "allowCustomClothing": true
+}

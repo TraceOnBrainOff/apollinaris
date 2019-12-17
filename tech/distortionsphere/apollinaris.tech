@@ -1,0 +1,14 @@
+{
+  "name" : "apollinaris",
+  "type" : "head",
+
+  "scripts" : ["/scripts/apollinaris/main/apollinaris.lua"],
+  "animator" : "sonicsphere.animation",
+
+  "description" : "Aliquid amandus",
+  "shortDescription" : "Apollinaris",
+  "rarity" : "Essential",
+  "icon" : "/tech/distortionsphere.png",
+
+  "chipCost" : 0
+}

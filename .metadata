@@ -1,0 +1,12 @@
+{
+  "name" : "Apollinaris",
+  "path" : ".",
+  "requires" : [],
+  "includes" : [
+    "QuickbarMini",
+    "StardustLib"
+  ],
+  "version" : "0.3",
+  "author" : "mad groovy",
+  "description": "Hyper alpha man."
+}

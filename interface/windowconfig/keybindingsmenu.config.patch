@@ -1,0 +1,12 @@
+[
+  {
+    "op" : "add",
+    "path" : "/keyActions/player/-",
+    "value" : { "label" : "Special 2", "action" : "PlayerTechAction2" }
+  },
+  {
+    "op" : "add",
+    "path" : "/keyActions/player/-",
+    "value" : { "label" : "Special 3", "action" : "PlayerTechAction3" }
+  }
+]

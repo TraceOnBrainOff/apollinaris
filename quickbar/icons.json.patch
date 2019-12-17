@@ -1,0 +1,15 @@
+[
+  {
+    "op": "add",
+    "path": "/items/starbound:apollo",
+    "value": {
+      "label": "^#9E9E9E;Apollinaris^reset;",
+      "weight": -3456,
+      "action": [
+        "pane",
+        "/interface/apollinaris/conf.config"
+      ],
+      "icon": "/interface/apollinaris/images/icon.png"
+    }
+  }
+]

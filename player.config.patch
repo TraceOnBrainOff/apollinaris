@@ -1,0 +1,7 @@
+[
+	{
+		"op": "add",
+		"path": "/deploymentConfig/scripts/-",
+		"value": "/scripts/apollinaris/main/apolloDeployment.lua"
+	}
+]
