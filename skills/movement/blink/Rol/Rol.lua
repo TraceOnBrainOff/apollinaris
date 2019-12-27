@@ -39,7 +39,7 @@ function Rol:start()
 	params.isOn = true
 	params.beginPosition = mcontroller.position()
 	if world.magnitude(mcontroller.position(), tech.aimPosition()) > params.maxDist then
-		params.destination = circle(mcontroller.position(), params.maxDist, aimAngle())
+		params.destination = util.trig(mcontroller.position(), params.maxDist, aimAngle())
 	else
 		params.destination = tech.aimPosition()
 	end
@@ -84,7 +84,7 @@ end
 function Rol.stage1(self)
 	local params = self.parameters
 	params.proj = spawnLogo()
-	playShortSound({"/sfx/objects/vault_close.ogg"}, 1.4, math.random(11, 13)/10, 0)
+	util.playShortSound({"/sfx/objects/vault_close.ogg"}, 1.4, math.random(11, 13)/10, 0)
 	tech.setToolUsageSuppressed(true)
 	for tick=0, 12 do
 		local perc = tick/12
@@ -120,7 +120,7 @@ end
 function Rol.stage3(self)
 	local params = self.parameters
 	params.proj = spawnLogo()
-	playShortSound({"/sfx/objects/vault_close.ogg"}, 1.3, math.random(5, 6)/10, 0)
+	util.playShortSound({"/sfx/objects/vault_close.ogg"}, 1.3, math.random(5, 6)/10, 0)
 	tech.setParentHidden(false)
 	for tick=0, 12 do
 		mcontroller.controlFace(util.toDirection(params.destination[1]-params.beginPosition[1]))

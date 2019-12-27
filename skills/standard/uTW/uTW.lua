@@ -79,7 +79,7 @@ end
     LMB - Sword Spawn + launch
     LMB + SHIFT - Rain swords w/ physics
     RMB - Levitate existing swords off of the ground and launch them towards the cursor
-    RMB + SHIFT - Circle existing swords around a target and launch them towards the target
+    RMB + SHIFT - util.trig existing swords around a target and launch them towards the target
 
     SHIFT + F - Rho Aias
     G - Caladbolg

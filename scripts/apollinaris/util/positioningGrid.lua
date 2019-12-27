@@ -125,7 +125,7 @@ function PositioningCircle:changeSize(radius) -- sqrt it!
     for i=1, (self.smoothness) do
         local previousAngle = angleDelta*(i-1)
         local currentAngle = angleDelta*i
-        lineSet[#lineSet+1] = {circle({0,0}, radius, previousAngle), circle({0,0}, radius, currentAngle)}
+        lineSet[#lineSet+1] = {util.trig({0,0}, radius, math.rad(previousAngle)), util.trig({0,0}, radius, math.rad(currentAngle))}
     end
     self.lineSet = lineSet
     self.radius = radius

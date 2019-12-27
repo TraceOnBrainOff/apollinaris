@@ -7,7 +7,7 @@ intlize.main = function()
     if intlize.timer == 0 then
         tempLock = false
         pcall(intlize.tocall)
-        if not isVanillaRace() then
+        if not util.isVanillaRace() then
             tempLock = true
         end
         intlize = nil

@@ -5,7 +5,8 @@ function LiveLog:assign()
     self = {}
     setmetatable(self, LiveLog)
     self.entryTable = {}
-    self.textSize = 0.6 -- ratio for the baseOffset = 6*textSize apparently
+	self.textSize = 0.6 -- ratio for the baseOffset = 6*textSize apparently
+	self:wrapLogging()
     return self
 end
 
@@ -69,6 +70,27 @@ function LiveLog:log(kind, key, value, time)
 		prefix = types[kind].prefix
 	}
 	types[kind].func(key)
+end
+
+function LiveLog:wrapLogging()
+	local oldLogInfo = sb.logInfo
+	local oldLogWarn = sb.logWarn
+	local oldLogError = sb.logError -- wrapping all three
+
+	function sb.logInfo(formatString, ...)
+		oldLogInfo(formatString, ...)
+		self:log("info", "Info", string.format(formatString, ...), 3)
+	end
+
+	function sb.logWarn(formatString, ...)
+		oldLogWarn(formatString, ...)
+		self:log("warn", "Warning", string.format(formatString, ...), 3)
+	end
+
+	function sb.logError(formatString, ...)
+		oldLogError(formatString, ...)
+		self:log("error", "Error", string.format(formatString, ...), 3)
+	end
 end
 
 function LiveLog:uninit()

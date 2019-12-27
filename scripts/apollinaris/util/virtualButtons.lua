@@ -98,7 +98,7 @@ function VirtualButtons:render()
 							timeToLive = 0,
 							destructionTime = 0,
 							destructionAction = "fade",
-							position = circle(self.focusPoint or {0,0}, distance, rotation),
+							position = util.trig(self.focusPoint or {0,0}, distance, math.rad(rotation)),
 							rotation = rotation-90,
 							size = (self.imageSize or 1)*self.imageSize[ringI],
 							layer = "front"
@@ -184,10 +184,10 @@ function VirtualButtons:createQuickSelectButtons()
 				local currentSubShape = currentButton.vertices[#currentButton.vertices]
 				local currentAngle = baseAngle + quarterAngleRange/self.smoothing * i
 				local nextAngle = baseAngle + quarterAngleRange/self.smoothing * (i+1)
-				currentSubShape[#currentSubShape+1] = circle({0,0}, currentButton.innerRadius, currentAngle)
-				currentSubShape[#currentSubShape+1] = circle({0,0}, currentButton.outerRadius, currentAngle)
-				currentSubShape[#currentSubShape+1] = circle({0,0}, currentButton.outerRadius, nextAngle)
-				currentSubShape[#currentSubShape+1] = circle({0,0}, currentButton.innerRadius, nextAngle)
+				currentSubShape[#currentSubShape+1] = util.trig({0,0}, currentButton.innerRadius, math.rad(currentAngle))
+				currentSubShape[#currentSubShape+1] = util.trig({0,0}, currentButton.outerRadius, math.rad(currentAngle))
+				currentSubShape[#currentSubShape+1] = util.trig({0,0}, currentButton.outerRadius, math.rad(nextAngle))
+				currentSubShape[#currentSubShape+1] = util.trig({0,0}, currentButton.innerRadius, math.rad(nextAngle))
 			end -- Done work on vertices
 
 			for key, value in pairs(buttonDatabase[quarter+1][ring+1]) do
@@ -298,10 +298,10 @@ function VirtualButtons:updateVertices()
 				local currentSubShape = currentButton.vertices[#currentButton.vertices]
 				local currentAngle = baseAngle + quarterAngleRange/self.smoothing * i
 				local nextAngle = baseAngle + quarterAngleRange/self.smoothing * (i+1)
-				currentSubShape[#currentSubShape+1] = circle({0,0}, currentButton.innerRadius, currentAngle)
-				currentSubShape[#currentSubShape+1] = circle({0,0}, currentButton.outerRadius, currentAngle)
-				currentSubShape[#currentSubShape+1] = circle({0,0}, currentButton.outerRadius, nextAngle)
-				currentSubShape[#currentSubShape+1] = circle({0,0}, currentButton.innerRadius, nextAngle)
+				currentSubShape[#currentSubShape+1] = util.trig({0,0}, currentButton.innerRadius, math.rad(currentAngle))
+				currentSubShape[#currentSubShape+1] = util.trig({0,0}, currentButton.outerRadius, math.rad(currentAngle))
+				currentSubShape[#currentSubShape+1] = util.trig({0,0}, currentButton.outerRadius, math.rad(nextAngle))
+				currentSubShape[#currentSubShape+1] = util.trig({0,0}, currentButton.innerRadius, math.rad(nextAngle))
 			end
 			self.buttons[quarter+1][ring+1].innerRadius = currentButton.innerRadius
 			self.buttons[quarter+1][ring+1].outerRadius = currentButton.outerRadius
@@ -319,13 +319,13 @@ function VirtualButtons:highlightCheck(args)
 	for i=1,self.quarters do
 		angleT[i] = quarterAngleRange*i
 	end
-	local angleBoundry = checkBoundry(angleT, angle) + 1 -- Works!
+	local angleBoundry = util.checkBoundry(angleT, angle) + 1 -- Works!
 
-	local distanceT = {self.innerRadius} -- will be filled out with outer radiuses for later comparison with checkBoundry() to determine which ring the cursor is hovering over
+	local distanceT = {self.innerRadius} -- will be filled out with outer radiuses for later comparison with util.checkBoundry() to determine which ring the cursor is hovering over
 	for i=1, self.rings do
 		distanceT[#distanceT+1] = self.buttons[1][i].outerRadius -- gets the outer radius of every button from quarter1, because i can assume that's gonna exist all the time... right?
 	end
-	local distanceBoundry = checkBoundry(distanceT, distance) -- from 0 to 4 on rings = 3
+	local distanceBoundry = util.checkBoundry(distanceT, distance) -- from 0 to 4 on rings = 3
 	for iQuarter, rings in ipairs(self.buttons) do
 		for iRing, button in ipairs(rings) do
 			button.isHighlighted = false

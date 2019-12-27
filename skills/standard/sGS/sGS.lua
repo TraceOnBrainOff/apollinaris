@@ -39,7 +39,7 @@ function sGS:init()
 			lengthVariation = 3
 		},
 		seekRange = 3,
-		timings = { -- checkboundry: <a,b)
+		timings = { -- util.checkBoundry: <a,b)
 			38,-- 0 - 38, nothing 
 			63, -- 38 - 63, letters
 			91, -- 63 - 91, travel
@@ -72,7 +72,7 @@ end
 
 function sGS:start()
 	local params = self.parameters
-	params.targetPos = circle(mcontroller.position(), self.parameters.dashRange, aimAngle())
+	params.targetPos = util.trig(mcontroller.position(), self.parameters.dashRange, aimAngle())
 	params.afterImages = self:afterImageCreator()
 	params.isOn = true
 end
@@ -87,10 +87,10 @@ function sGS:update(args)
     if params.isOn then
 		if not params.isAttacking then -- Everything below is for windup/letters/dash
 			params.timer = params.timer + 1
-			local stage = checkBoundry(params.timings, params.timer)
+			local stage = util.checkBoundry(params.timings, params.timer)
 			if stage == 0 then
 				if not params.failsaves.windupSound then
-					playShortSound({"/sfx/melee/charge_up6.ogg"}, 2, math.random(18, 22)/10, 0)
+					util.playShortSound({"/sfx/melee/charge_up6.ogg"}, 2, math.random(18, 22)/10, 0)
 					params.failsaves.windupSound = true
 				end
 				self:spawnWindupStreak(math.abs(params.timings[stage+1]-params.timer-1)) -- giving it more leeway
@@ -98,8 +98,8 @@ function sGS:update(args)
 			elseif stage == 1 then
 				if not params.failsaves.letters then
 					self:weebyLetters()
-					playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 3, 1.05, 0)
-					playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 3, 1.05, 0)
+					util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 3, 1.05, 0)
+					util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 3, 1.05, 0)
 					params.failsaves.letters = true
 				end
 				mcontroller.setVelocity({0,0})
@@ -107,7 +107,7 @@ function sGS:update(args)
 				if not params.startPos then
 					params.startPos = mcontroller.position()
 					tech.setParentState("fly")
-					playShortSound({"/sfx/tech/tech_rocketboots_thrust2.ogg"}, 2, 0.65, 0)
+					util.playShortSound({"/sfx/tech/tech_rocketboots_thrust2.ogg"}, 2, 0.65, 0)
 				end
 				local x = params.easing(params.timer-params.timings[2], params.startPos[1], params.targetPos[1]-params.startPos[1], params.timings[3] - params.timings[2])
 				local y = params.easing(params.timer-params.timings[2], params.startPos[2], params.targetPos[2]-params.startPos[2], params.timings[3] - params.timings[2])
@@ -128,7 +128,7 @@ function sGS:update(args)
 			end
 		else -- if isAttacking 
 			params.timer = params.timer + 1
-			local stage = checkBoundry(params.attackTimings, params.timer)
+			local stage = util.checkBoundry(params.attackTimings, params.timer)
 			if stage == 0 then -- attack
 				if not params.failsaves.blackScreen then
 					params.failsaves.blackScreen = true
@@ -138,7 +138,7 @@ function sGS:update(args)
 				if not params.eyeTrail.startPos then
 					params.eyeTrail.startPos = world.entityPosition(params.target) or mcontroller.position()
 					params.eyeTrail.angle = math.random(0, 360)
-					params.eyeTrail.endPos = circle(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), params.eyeTrail.angle, params.eyeTrail.circleRatio)
+					params.eyeTrail.endPos = util.trig(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), math.rad(params.eyeTrail.angle), params.eyeTrail.circleRatio)
 				end
 				local elapsedTime = params.timer - (params.attackKeyframes[params.comboCount] or 0)
 				local duration = params.attackKeyframes[params.comboCount+1]
@@ -157,15 +157,15 @@ function sGS:update(args)
 							self:smack(params.eyeTrail.endPos)
 							params.eyeTrail.startPos = params.eyeTrail.endPos
 							params.eyeTrail.angle = params.eyeTrail.angle+180+math.random(-params.eyeTrail.angleDiff,params.eyeTrail.angleDiff)
-							params.eyeTrail.endPos = circle(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), params.eyeTrail.angle, params.eyeTrail.circleRatio)
+							params.eyeTrail.endPos = util.trig(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), math.rad(params.eyeTrail.angle), params.eyeTrail.circleRatio)
 						end
-						playShortSound({"/sfx/interface/playerstation_place1.ogg"}, 2, 0.85, 0)
+						util.playShortSound({"/sfx/interface/playerstation_place1.ogg"}, 2, 0.85, 0)
 						params.comboCount = params.comboCount + 1
 					end
 				end
 			elseif stage == 1 then
 				if not params.failsaves.postAttack then
-					playShortSound({"/sfx/gun/reload/rocket_reload_clip3.ogg"}, 2, 1.4, 0)
+					util.playShortSound({"/sfx/gun/reload/rocket_reload_clip3.ogg"}, 2, 1.4, 0)
 					params.failsaves.postAttack = true
 					pcall(mcontroller.controlFace(-util.toDirection(world.entityPosition(params.target)[1]-params.startPos[1])))
 					pcall(mcontroller.setPosition(vec2.add(world.entityPosition(params.target), {-params.postAttackBlinkDist*mcontroller.facingDirection(),2})))
@@ -177,11 +177,11 @@ function sGS:update(args)
 					params.failsaves.symbol = true
 					for i=1,9 do
 						local victimPos = world.entityPosition(params.target)
-						draw.lightning(victimPos, circle(victimPos,params.explosionRadius, 40*i), 3, 0.2, 0, 200, 3, color:random(true), "front")
+						draw.lightning(victimPos, util.trig(victimPos,params.explosionRadius, math.rad(40*i)), 3, 0.2, 0, 200, 3, color:random(true), "front")
 					end
-					playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 4, 1.25, 0)
-					playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 4, 1.25, 0)
-					playShortSound({"/sfx/cinematics/opengate/opengate_blast.ogg"}, 2, 1.05, 0)
+					util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 4, 1.25, 0)
+					util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 4, 1.25, 0)
+					util.playShortSound({"/sfx/cinematics/opengate/opengate_blast.ogg"}, 2, 1.05, 0)
 					crash(params.target)
 				end
 			elseif stage == 3 then
@@ -233,8 +233,8 @@ end
 function sGS:spawnWindupStreak(remainingTime)
 	--(self.parameters.windupStreaks.outerRange-self.parameters.windupStreaks.innerRange)/(remainingTime/60) -> calculating the velocity vector's length
 	local angle = math.random(0,360)
-	local speedVector = circle({0,0}, (self.parameters.windupStreaks.outerRange-self.parameters.windupStreaks.innerRange)/(remainingTime/60), angle)
-	local position = circle({0,0}, self.parameters.windupStreaks.outerRange, angle+180)
+	local speedVector = util.trig({0,0}, (self.parameters.windupStreaks.outerRange-self.parameters.windupStreaks.innerRange)/(remainingTime/60), math.rad(angle))
+	local position = util.trig({0,0}, self.parameters.windupStreaks.outerRange, math.rad(angle+180))
 	local streak = {
 		action = "particle",
 		time = 0,

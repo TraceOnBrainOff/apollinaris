@@ -241,7 +241,7 @@ function draw.shape(...) --draw.shape({radius, color, amntOfSides, [lineConfig]}
 				local angleRef = 360 / currShape[2]
 				local baseOffset = -30
 				for i=1, currShape[2], 1 do
-					a[#a+1] = draw.line(circle({0,0}, currShape[1],i*angleRef+baseOffset+offsetAngle),circle({0,0}, currShape[1],i*angleRef+baseOffset+offsetAngle), circle({0,0}, currShape[1], (i+1)*angleRef+baseOffset+offsetAngle), lineConfig.size, lineConfig.color, lineConfig.layer, lineConfig.timeToLive, lineConfig.destructionTime, lineConfig.destructionAction, lineConfig.wiggle, lineConfig.lengthJitter, lineConfig.sizeJitter)
+					a[#a+1] = draw.line(util.trig({0,0}, currShape[1],math.rad(i*angleRef+baseOffset+offsetAngle)),util.trig({0,0}, currShape[1],math.rad(i*angleRef+baseOffset+offsetAngle)), util.trig({0,0}, currShape[1], math.rad((i+1)*angleRef+baseOffset+offsetAngle)), lineConfig.size, lineConfig.color, lineConfig.layer, lineConfig.timeToLive, lineConfig.destructionTime, lineConfig.destructionAction, lineConfig.wiggle, lineConfig.lengthJitter, lineConfig.sizeJitter)
 				end
 			end
 			return a
