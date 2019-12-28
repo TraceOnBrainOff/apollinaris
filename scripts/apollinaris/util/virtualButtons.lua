@@ -15,7 +15,6 @@ function VirtualButtons:new(args) -- Table: {focusPoint = {0,0}, buttonDatabase 
 		self:createQuickSelectButtons()
 	else
 		sb.logError("virtualButton creation failed")
-		log("error", "virtualButton creation failed")
 	end
 	self.originInnerRadius = self.innerRadius
 	self.originOuterRadius = self.outerRadius
@@ -271,7 +270,7 @@ function VirtualButtons:setColor(color)
 end
 
 function VirtualButtons:setButtons(t)
-	self.buttonDatabase = type(t) == "table" and tableMerge(self.buttonDatabase, t) or ({} or log("warn", "Defaulting. setButtons is invalid: ", t)) -- merges the tables so loss of data is unlikely to occur
+	self.buttonDatabase = type(t) == "table" and util.mergeTable(self.buttonDatabase, t) or ({} or log("warn", "Defaulting. setButtons is invalid: ", t)) -- merges the tables so loss of data is unlikely to occur
 	self:createQuickSelectButtons() -- hard recreation required look up
 end
 
