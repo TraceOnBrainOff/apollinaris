@@ -27,7 +27,16 @@ function PassiveVisuals:update()
     self:breathingUpdate()
     -- Chatting
     self:chattingUpdate()
+
+    --self:showCursors()
 end
+
+--function PassiveVisuals:showCursors()
+--    local x,y = dll.getCursorPos(entity.id())
+--    world.debugText(tostring(x), vec2.add(entity.position(), 1), {255,255,255,255})
+--    world.debugText(tostring(y), vec2.add(entity.position(), 5), {255,255,255,255})
+--    world.debugLine(entity.position(), {x,y}, {255,255,255,255})
+--end
 
 function PassiveVisuals:breathingUpdate()
     local params = self.breathing
