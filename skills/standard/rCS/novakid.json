@@ -1,0 +1,13 @@
+{ //base body colors: 806319, F6B919, FDE03F, FFF8B5, ffffff
+    "name": "^shadow;^#51acff;S^#4faaff;e^#4ca7ff;v^reset;",
+    "personality": {
+        "idle": "idle.4",
+        "armIdle": "idle.4",
+        "headOffset": [-1, 0],
+        "armOffset": [0, 0]
+    },
+
+    "body_directives": {"806319":"01579B", "F6B919":"03A9F4", "FDE03F":"81D4FA", "FFF8B5":"E1F5FE", "ffffff":"ffffff"}, //ORDERED LIST!!!!!!
+    "hair_directives": "?replace;806319=0c2b4b;f6b919=12c2e8;fde03f=56ebf8;fff8b5=c7feff",
+    "emote_directives": "?replace;951500=7E3F38;BE1B00=C1695F;F32200=FFDCC4;DC1F00=FFB98F"
+}

@@ -1,24 +1,9 @@
-Rol = {}
-Rol.__index = Rol
+local Rol = newAbility()
+TEMP_HOLDER = Rol --REQUIRED PLEASE DON'T TOUCH
 
 function Rol:assign()
     local self = {}
     setmetatable(self, Rol)
-    self.metadata = {
-        name = "Roll",
-        type = "blink", -- skill/ultimate/passive/blink/fly/jump/dash
-        tag = "Rol", -- ease of access ftw
-		series = "standard", -- standard / curse / aeternum
-		settings = {
-			energyConsumption = {
-				type = "instant",
-				amount = 10
-			},
-			stopPassiveVisuals = true,
-			disableSolidHitbox = false,
-			allowCustomClothing = false
-		}
-    }
     return self
 end
 
@@ -30,9 +15,6 @@ function Rol:init()
 		proj = {},
 		currentStage = 1
 	}
-end
-
-function Rol:start()
 	tech.setParentHidden(false)
 	mcontroller.setRotation(0)
 	local params = self.parameters
@@ -45,7 +27,6 @@ function Rol:start()
 	end
 	self.co = coroutine.create(self.stage1)
 	params.currentStage = 1
-	--world.spawnStagehand(tech.aimPosition(), "antiClothing")
 end
 
 function Rol:stop() -- this is a trigger, so it doesn't necessarily mean that the ability will stop instantly.
@@ -55,30 +36,26 @@ end
 
 function Rol:update(args)
     local params = self.parameters
-    if params.isOn then
-		if coroutine.status(self.co) ~= "dead" then
-			local working, isDone = coroutine.resume(self.co, self)
-			mcontroller.setVelocity({0,0})
-			if not working then
-				sb.logError(isDone) -- isDone changes to an error return traceback
-				log("error", "Rol error", isDone)
-			else -- if it is working
-				if isDone then -- if isDone returns true (stage finished)
-					params.currentStage = params.currentStage + 1
-					if params.currentStage > 3 then -- if it's completed
-						params.isOn = false -- then done
-					else
-						self.co = coroutine.create(self[string.format("stage%i",params.currentStage)]) -- assign new stage
-					end
+	if coroutine.status(self.co) ~= "dead" then
+		local working, isDone = coroutine.resume(self.co, self)
+		mcontroller.setVelocity({0,0})
+		if not working then
+			sb.logError(isDone) -- isDone changes to an error return traceback
+			log("error", "Rol error", isDone)
+		else -- if it is working
+			if isDone then -- if isDone returns true (stage finished)
+				params.currentStage = params.currentStage + 1
+				if params.currentStage > 3 then -- if it's completed
+					self:stop()
+				else
+					self.co = coroutine.create(self[string.format("stage%i",params.currentStage)]) -- assign new stage
 				end
 			end
 		end
-    end
-    return params.isOn
+	end
 end
 
 function Rol:uninit()
-
 end
 
 function Rol.stage1(self)
@@ -108,8 +85,8 @@ function Rol.stage2(self)
 	for tick=0, 30 do
 		mcontroller.setPosition(
 			{
-				inQuad(tick, params.beginPosition[1], params.destination[1]-params.beginPosition[1], 30), --x
-				inQuad(tick, params.beginPosition[2], params.destination[2]-params.beginPosition[2], 30)	--y
+				easing.inQuad(tick, params.beginPosition[1], params.destination[1]-params.beginPosition[1], 30), --x
+				easing.inQuad(tick, params.beginPosition[2], params.destination[2]-params.beginPosition[2], 30)	--y
 			}
 		)
 		coroutine.yield()

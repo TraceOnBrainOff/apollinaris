@@ -1,30 +1,15 @@
-sGS = {}
-sGS.__index = sGS
+local sGS = newAbility()
+TEMP_HOLDER = sGS --REQUIRED PLEASE DON'T TOUCH
 
 function sGS:assign()
 	local self = {}
     setmetatable(self, sGS)
-    self.metadata = {
-        name = "Shin Goku Satsu",
-		type = "skill", -- skill/ultimate/passive
-		tag = "sGS",
-		settings = {
-			energyConsumption = {
-				type = "instant",
-				amount = 10
-			},
-			stopPassiveVisuals = false,
-			disableSolidHitbox = true
-		}
-    }
     return self
 end
 
 function sGS:init()
-    self.parameters = {}
     self.parameters = {
-		isOn = false,
-		easing = outQuad,
+		easing = easing.outQuad,
 		targetPos = {0,0},
 		dashRange = 10,
 		timer = 0,
@@ -53,7 +38,7 @@ function sGS:init()
 		eyeTrail = {
 			circleRatio = {1,0.4},
 			radius = 2.5,
-			easing = inQuad,
+			easing = easing.inQuad,
 			angleDiff = 90
 		},
 		comboCount = 0,
@@ -68,130 +53,122 @@ function sGS:init()
 		explosionRadius = 7.5,
 		afterImages = {}
 	}
-end
-
-function sGS:start()
 	local params = self.parameters
 	params.targetPos = util.trig(mcontroller.position(), self.parameters.dashRange, aimAngle())
 	params.afterImages = self:afterImageCreator()
-	params.isOn = true
 end
 
 function sGS:stop()
-	self:init()
 	tech.setParentState()
 end
 
 function sGS:update(args)
     local params = self.parameters
-    if params.isOn then
-		if not params.isAttacking then -- Everything below is for windup/letters/dash
-			params.timer = params.timer + 1
-			local stage = util.checkBoundry(params.timings, params.timer)
-			if stage == 0 then
-				if not params.failsaves.windupSound then
-					util.playShortSound({"/sfx/melee/charge_up6.ogg"}, 2, math.random(18, 22)/10, 0)
-					params.failsaves.windupSound = true
-				end
-				self:spawnWindupStreak(math.abs(params.timings[stage+1]-params.timer-1)) -- giving it more leeway
-				mcontroller.setVelocity({0,0})
-			elseif stage == 1 then
-				if not params.failsaves.letters then
-					self:weebyLetters()
-					util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 3, 1.05, 0)
-					util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 3, 1.05, 0)
-					params.failsaves.letters = true
-				end
-				mcontroller.setVelocity({0,0})
-			elseif stage == 2 then
-				if not params.startPos then
-					params.startPos = mcontroller.position()
-					tech.setParentState("fly")
-					util.playShortSound({"/sfx/tech/tech_rocketboots_thrust2.ogg"}, 2, 0.65, 0)
-				end
-				local x = params.easing(params.timer-params.timings[2], params.startPos[1], params.targetPos[1]-params.startPos[1], params.timings[3] - params.timings[2])
-				local y = params.easing(params.timer-params.timings[2], params.startPos[2], params.targetPos[2]-params.startPos[2], params.timings[3] - params.timings[2])
-				mcontroller.setPosition({x,y})
-				mcontroller.setVelocity({0,0})
-				self:afterImage()
-				self:spawnEyeTrail(mcontroller.position(), params.oldPos)
-				mcontroller.controlFace(util.toDirection(params.targetPos[1]-params.startPos[1]))
-				local enQuery = world.entityQuery(mcontroller.position(), params.seekRange, {withoutEntityId = entity.id(), boundMode = "position", includedTypes = {"monster", "npc", "vehicle", "player"}})[1]
-				if enQuery then
-					params.isAttacking = true
-					params.timer = 0
-					params.target = enQuery
-				end
-			elseif stage > 2 and params.target == 0 then
-				tech.setParentState()
-				self:stop()
+	if not params.isAttacking then -- Everything below is for windup/letters/dash
+		params.timer = params.timer + 1
+		local stage = util.checkBoundry(params.timings, params.timer)
+		if stage == 0 then
+			if not params.failsaves.windupSound then
+				util.playShortSound({"/sfx/melee/charge_up6.ogg"}, 2, math.random(18, 22)/10, 0)
+				params.failsaves.windupSound = true
 			end
-		else -- if isAttacking 
-			params.timer = params.timer + 1
-			local stage = util.checkBoundry(params.attackTimings, params.timer)
-			if stage == 0 then -- attack
-				if not params.failsaves.blackScreen then
-					params.failsaves.blackScreen = true
-					tech.setParentState("fall")
-					self:spawnBlackScreen()
-				end
-				if not params.eyeTrail.startPos then
-					params.eyeTrail.startPos = world.entityPosition(params.target) or mcontroller.position()
-					params.eyeTrail.angle = math.random(0, 360)
-					params.eyeTrail.endPos = util.trig(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), math.rad(params.eyeTrail.angle), params.eyeTrail.circleRatio)
-				end
-				local elapsedTime = params.timer - (params.attackKeyframes[params.comboCount] or 0)
-				local duration = params.attackKeyframes[params.comboCount+1]
-				local x = params.eyeTrail.easing(elapsedTime, params.eyeTrail.startPos[1], params.eyeTrail.endPos[1]-params.eyeTrail.startPos[1], duration)
-				local y = params.eyeTrail.easing(elapsedTime, params.eyeTrail.startPos[2], params.eyeTrail.endPos[2]-params.eyeTrail.startPos[2], duration)
-				local eyeTrailPos = {x,y}
-				pcall(mcontroller.setPosition(eyeTrailPos))
-				if world.magnitude(mcontroller.position(), params.oldPos) > 0.1 and params.comboCount < 25 then
-					--self:spawnEyeTrail(mcontroller.position(), params.oldPos, 0.175, 5)
-					--draw.lightning(startLine, endLine, displacement, minDisplacement, forks, forkAngleRange, width, color, layer)
-					draw.lightning(mcontroller.position(), params.oldPos, 4, 0.45, 0, 0, 2, color:hex(1), "front")
-				end
-				for i=1,#params.attackKeyframes do
-					if params.timer == params.attackKeyframes[i] then
-						if params.comboCount < 25 then
-							self:smack(params.eyeTrail.endPos)
-							params.eyeTrail.startPos = params.eyeTrail.endPos
-							params.eyeTrail.angle = params.eyeTrail.angle+180+math.random(-params.eyeTrail.angleDiff,params.eyeTrail.angleDiff)
-							params.eyeTrail.endPos = util.trig(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), math.rad(params.eyeTrail.angle), params.eyeTrail.circleRatio)
-						end
-						util.playShortSound({"/sfx/interface/playerstation_place1.ogg"}, 2, 0.85, 0)
-						params.comboCount = params.comboCount + 1
-					end
-				end
-			elseif stage == 1 then
-				if not params.failsaves.postAttack then
-					util.playShortSound({"/sfx/gun/reload/rocket_reload_clip3.ogg"}, 2, 1.4, 0)
-					params.failsaves.postAttack = true
-					pcall(mcontroller.controlFace(-util.toDirection(world.entityPosition(params.target)[1]-params.startPos[1])))
-					pcall(mcontroller.setPosition(vec2.add(world.entityPosition(params.target), {-params.postAttackBlinkDist*mcontroller.facingDirection(),2})))
-					mcontroller.setVelocity({0,0})
-					tech.setParentState()
-				end
-			elseif stage == 2 then -- symbol yeah
-				if not params.failsaves.symbol then
-					params.failsaves.symbol = true
-					for i=1,9 do
-						local victimPos = world.entityPosition(params.target)
-						draw.lightning(victimPos, util.trig(victimPos,params.explosionRadius, math.rad(40*i)), 3, 0.2, 0, 200, 3, color:random(true), "front")
-					end
-					util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 4, 1.25, 0)
-					util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 4, 1.25, 0)
-					util.playShortSound({"/sfx/cinematics/opengate/opengate_blast.ogg"}, 2, 1.05, 0)
-					crash(params.target)
-				end
-			elseif stage == 3 then
-				tech.setParentState()
-				self:stop()
+			self:spawnWindupStreak(math.abs(params.timings[stage+1]-params.timer-1)) -- giving it more leeway
+			mcontroller.setVelocity({0,0})
+		elseif stage == 1 then
+			if not params.failsaves.letters then
+				self:weebyLetters()
+				util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 3, 1.05, 0)
+				util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 3, 1.05, 0)
+				params.failsaves.letters = true
 			end
+			mcontroller.setVelocity({0,0})
+		elseif stage == 2 then
+			if not params.startPos then
+				params.startPos = mcontroller.position()
+				tech.setParentState("fly")
+				util.playShortSound({"/sfx/tech/tech_rocketboots_thrust2.ogg"}, 2, 0.65, 0)
+			end
+			local x = params.easing(params.timer-params.timings[2], params.startPos[1], params.targetPos[1]-params.startPos[1], params.timings[3] - params.timings[2])
+			local y = params.easing(params.timer-params.timings[2], params.startPos[2], params.targetPos[2]-params.startPos[2], params.timings[3] - params.timings[2])
+			mcontroller.setPosition({x,y})
+			mcontroller.setVelocity({0,0})
+			self:afterImage()
+			self:spawnEyeTrail(mcontroller.position(), params.oldPos)
+			mcontroller.controlFace(util.toDirection(params.targetPos[1]-params.startPos[1]))
+			local enQuery = world.entityQuery(mcontroller.position(), params.seekRange, {withoutEntityId = entity.id(), boundMode = "position", includedTypes = {"monster", "npc", "vehicle", "player"}})[1]
+			if enQuery then
+				params.isAttacking = true
+				params.timer = 0
+				params.target = enQuery
+			end
+		elseif stage > 2 and params.target == 0 then
+			tech.setParentState()
+			self:stop()
 		end
-		params.oldPos = mcontroller.position()
-    end
-    return params.isOn
+	else -- if isAttacking 
+		params.timer = params.timer + 1
+		local stage = util.checkBoundry(params.attackTimings, params.timer)
+		if stage == 0 then -- attack
+			if not params.failsaves.blackScreen then
+				params.failsaves.blackScreen = true
+				tech.setParentState("fall")
+				self:spawnBlackScreen()
+			end
+			if not params.eyeTrail.startPos then
+				params.eyeTrail.startPos = world.entityPosition(params.target) or mcontroller.position()
+				params.eyeTrail.angle = math.random(0, 360)
+				params.eyeTrail.endPos = util.trig(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), math.rad(params.eyeTrail.angle), params.eyeTrail.circleRatio)
+			end
+			local elapsedTime = params.timer - (params.attackKeyframes[params.comboCount] or 0)
+			local duration = params.attackKeyframes[params.comboCount+1]
+			local x = params.eyeTrail.easing(elapsedTime, params.eyeTrail.startPos[1], params.eyeTrail.endPos[1]-params.eyeTrail.startPos[1], duration)
+			local y = params.eyeTrail.easing(elapsedTime, params.eyeTrail.startPos[2], params.eyeTrail.endPos[2]-params.eyeTrail.startPos[2], duration)
+			local eyeTrailPos = {x,y}
+			pcall(mcontroller.setPosition(eyeTrailPos))
+			if world.magnitude(mcontroller.position(), params.oldPos) > 0.1 and params.comboCount < 25 then
+				--self:spawnEyeTrail(mcontroller.position(), params.oldPos, 0.175, 5)
+				--draw.lightning(startLine, endLine, displacement, minDisplacement, forks, forkAngleRange, width, color, layer)
+				draw.lightning(mcontroller.position(), params.oldPos, 4, 0.45, 0, 0, 2, color:hex(1), "front")
+			end
+			for i=1,#params.attackKeyframes do
+				if params.timer == params.attackKeyframes[i] then
+					if params.comboCount < 25 then
+						self:smack(params.eyeTrail.endPos)
+						params.eyeTrail.startPos = params.eyeTrail.endPos
+						params.eyeTrail.angle = params.eyeTrail.angle+180+math.random(-params.eyeTrail.angleDiff,params.eyeTrail.angleDiff)
+						params.eyeTrail.endPos = util.trig(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), math.rad(params.eyeTrail.angle), params.eyeTrail.circleRatio)
+					end
+					util.playShortSound({"/sfx/interface/playerstation_place1.ogg"}, 2, 0.85, 0)
+					params.comboCount = params.comboCount + 1
+				end
+			end
+		elseif stage == 1 then
+			if not params.failsaves.postAttack then
+				util.playShortSound({"/sfx/gun/reload/rocket_reload_clip3.ogg"}, 2, 1.4, 0)
+				params.failsaves.postAttack = true
+				pcall(mcontroller.controlFace(-util.toDirection(world.entityPosition(params.target)[1]-params.startPos[1])))
+				pcall(mcontroller.setPosition(vec2.add(world.entityPosition(params.target), {-params.postAttackBlinkDist*mcontroller.facingDirection(),2})))
+				mcontroller.setVelocity({0,0})
+				tech.setParentState()
+			end
+		elseif stage == 2 then -- symbol yeah
+			if not params.failsaves.symbol then
+				params.failsaves.symbol = true
+				for i=1,9 do
+					local victimPos = world.entityPosition(params.target)
+					draw.lightning(victimPos, util.trig(victimPos,params.explosionRadius, math.rad(40*i)), 3, 0.2, 0, 200, 3, color:random(true), "front")
+				end
+				util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 4, 1.25, 0)
+				util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 4, 1.25, 0)
+				util.playShortSound({"/sfx/cinematics/opengate/opengate_blast.ogg"}, 2, 1.05, 0)
+				crash(params.target)
+			end
+		elseif stage == 3 then
+			tech.setParentState()
+			self:stop()
+		end
+	end
+	params.oldPos = mcontroller.position()
 end
 
 function sGS:uninit()

@@ -26,21 +26,46 @@ function Color:assign()
 end
 
 function Color:updatePalette()
-    local defaultPaltete = {
-        {187,187,187},
-        {51,51,51}
-    }
-    status.setStatusProperty("apolloColor", defaultPaltete) -- debug
-    self.originalPalette = status.statusProperty("apolloColor", defaultPaltete)
+    local defaultPalette = root.assetJson("/scripts/apollinaris/util/default_colors.config", {})
+    status.setStatusProperty("apolloColor", defaultPalette) -- debug
+    self.originalPalette = status.statusProperty("apolloColor", defaultPalette)
     self.palette = {}
-    self.palette.rgb = self:gradient(6)
+    if #defaultPalette ~= 6 then
+        self.palette.rgb = self:gradient(6)
+    elseif #defaultPalette == 6 then
+        self.palette.rgb = defaultPalette
+    else
+        error("Incorrect data in default_colors.config")
+    end
     self.palette.hex = {}
     for i, rgb in ipairs(self.palette.rgb) do
-        self.palette.hex[#self.palette.hex+1] = self:rgb2hex(rgb)
+        table.insert(self.palette.hex, Color.rgb2hex(rgb))
     end
 end
 
-function Color:rgb2hex(rgb) -- also accepts alpha
+function Color:gradient(amount) -- for things having less or more than 6 colors or extrapolating
+    local rgbPalette = {self.originalPalette[1], self.originalPalette[2]} -- lightest to darkest
+    local gradient = {rgbPalette[1]}
+    local steps = {}
+    for i, hex in ipairs(self.originalPalette[1]) do -- does for r, g, b
+        table.insert(steps, (rgbPalette[2][i]-rgbPalette[1][i])/(amount-1))
+    end
+    for i=1, amount-2 do --minus 2 as im padding this at the beginning and end 
+        local newColor = {}
+        for j=1, 3 do
+            table.insert(newColor,math.floor(rgbPalette[1][j] + steps[j]*i))
+        end
+        table.insert(gradient, newColor) 
+    end
+    table.insert(gradient, rgbPalette[2])
+    return gradient
+end
+
+function Color.invert(rgb)
+    return util.map(rgb, function(v) return v~0xff end)
+end
+
+function Color.rgb2hex(rgb) -- also accepts alpha
     local str = ""
 	local function hexConverter(input)
 		local hexCharacters = '0123456789abcdef'
@@ -64,11 +89,11 @@ function Color:rgb2hex(rgb) -- also accepts alpha
     return str
 end
 
-function Color:hex2rgb(hex)
+function Color.hex2rgb(hex)
     return {tonumber("0x"..hex:sub(1,2)), tonumber("0x"..hex:sub(3,4)), tonumber("0x"..hex:sub(5,6))}
 end
 
-function Color:hex2rgba(hex)
+function Color.hex2rgba(hex)
     return {tonumber("0x"..hex:sub(1,2)), tonumber("0x"..hex:sub(3,4)), tonumber("0x"..hex:sub(5,6)), tonumber("0x"..hex:sub(7,8))}
 end
 
@@ -84,12 +109,12 @@ function Color:random(hex, amount)
     amount = amount or 6
     local gradient = self:gradient(amount)
     if hex then
-        return self:rgb2hex(gradient[math.random(amount)])
+        return Color.rgb2hex(gradient[math.random(amount)])
     end
     return gradient[math.random(amount)]
 end
 
-function Color:hueShift(input, hueshift) -- RGB only!
+function Color.hueShift(input, hueshift) -- RGB only!
 	local U = math.cos(hueshift*math.pi/180)
 	local W = math.sin(hueshift*math.pi/180)
   
@@ -101,21 +126,7 @@ function Color:hueShift(input, hueshift) -- RGB only!
 	return ret
 end
 
-function Color:gradient(amount) -- for things having less or more than 6 colors or extrapolating
-    local rgbPalette = {self.originalPalette[1], self.originalPalette[2]} -- lightest to darkest
-    local gradient = {}
-    for currentColor = 0, (amount-1) do
-        local a = currentColor/(amount-1)
-        local newColor = {}
-        for i=1, 3 do
-            newColor[#newColor+1] = math.floor(rgbPalette[1][i] - (rgbPalette[1][i]-rgbPalette[2][i])*a)
-        end
-        gradient[#gradient+1] = newColor
-    end
-    return gradient
-end
-
-function hexFromColorName(name)
+function Color.hexFromColorName(name)
     local t = {
         red = "fe4942",
         orange = "feb32f",

@@ -16,6 +16,5 @@ end
 
 intlize.tocall = function()
     energy:setEnergyBarUnusableColor()
-    engine.portBridge({"player", "localAnimator", "playerPrimary"}) -- player and localAnimator are from the deployment script, playerPrimary is from player_primary.lua
-    watchDog:checkCustomClothing()
+    portBridge({"player", "localAnimator", "playerPrimary"}) -- player and localAnimator are from the deployment script, playerPrimary is from player_primary.lua
 end

@@ -1,3 +1,5 @@
+require "/skills/newAbility.lua"
+
 require "/scripts/vec2.lua" -- Vector bullshit
 require "/scripts/rect.lua"
 require "/scripts/util.lua" -- Util, the usual
@@ -6,8 +8,9 @@ require "/tech/doubletap.lua" -- Doubletaps for noclipping
 
 require "/scripts/apollinaris/util/util.lua" -- own util file with some useful funcs lua or starbound would prob benefit from
 require "/scripts/apollinaris/util/handlers.lua"
-require "/scripts/apollinaris/main/engine.lua" -- remove this and you're basically without both kidneys, a liver or two, and all limbs. without this goddamn lua file, this mod is a worthless sack of meat.
+--require "/scripts/apollinaris/main/engine.lua" -- remove this and you're basically without both kidneys, a liver or two, and all limbs. without this goddamn lua file, this mod is a worthless sack of meat. WELL HOW THE TURNTABLES OLD ME
 require "/scripts/apollinaris/main/initialize.lua"
+require "/scripts/apollinaris/util/particleSpawner.lua"
 
 require "/scripts/apollinaris/util/liveLog.lua"
 require "/scripts/apollinaris/util/textHandler.lua"
@@ -21,11 +24,9 @@ require "/scripts/apollinaris/util/abilityHandler.lua"
 require "/scripts/apollinaris/util/energy.lua"
 require "/scripts/apollinaris/util/directives.lua"
 require "/scripts/apollinaris/util/solidCollision.lua"
-require "/scripts/apollinaris/util/watchDog.lua"
 require "/scripts/apollinaris/util/passiveVisuals.lua"
 
 function init()
-	watchDog = WatchDog:assign()
 	if os and package and util.checkOS() == "win64" then -- safeScripts is off, access to system functions is allowed
 		local result = package.loadlib("FERVOR.dll", "load")()
 		dll = _G.dll
@@ -40,26 +41,13 @@ function init()
 	logging = LiveLog:assign()
 	color = Color:assign()
 	energy = Energy:assign()
-	abilityHandler = AbilityHandler:assign() -- from abilityHandler.lua
+	heldKeyHandler = HeldKeyHandler:new()
+	abilityHandler = AbilityHandler:assign(3) -- from abilityHandler.lua
 	solidCollision = SolidCollision:assign()
     directives = DirectiveHandler:assign()
 	logoAction = createApollinarisLogo(3, color:hex(1), {"offense", "defense", "support"}) -- get rid of this
-	doubleTapTimer = 2 -- Sets the state to standing for default (refer to noClipParams())
-	engine.createDoubleTaps()
-	abilityHandler:equipLoop("init")
+	createDoubleTaps()
 	passiveVisuals = PassiveVisuals:assign()
-	quickSwitch = VirtualButtons:new({
-		buttonDatabase = buttonLayout,
-		focusPoint = entity.id(),
-		overlap = 0.5,
-		rings = 3, 
-		quarters = 4, 
-		innerRadius = 3, 
-		outerRadius = 12, 
-		smoothing = 2,
-		closeAfterPress = true,
-		color = { color:rgb(1), color:rgb(5) }
-	})
 	status.setPersistentEffects("apollinaris", {
 		{stat = "breathProtection", amount = 1},
 		{stat = "biomeradiationImmunity", amount = 1},
@@ -68,35 +56,32 @@ function init()
 	})
 end
 
+args = {}
 function update(_)
-	args = {}
 	args = _ -- making it global cos doubletaps don't have access to args for whatever unholy reason and i wanna do something cheeky
+	args.moves.run = not args.moves.run
 	if intlize then -- delayed startup. it removes itself after its done, that's why im checking if it even exists
 		intlize.main()
 	end
 	if hardLock or tempLock then
 		return
 	end
-	engine.isMovingCheck(args)
 	localAnimator.clearDrawables()
 	localAnimator.clearLightSources()
-	engine.updateDoubleTaps(args) -- Handles updating the double taps
+	heldKeyHandler:update(args)
+	updateDoubleTaps(args) -- Handles updating the double taps
+	args.failsaves = util.mapWithKeys(args.moves, keybindFailsaves)
 	abilityHandler:update(args)
 	energy:update()
-	quickSwitch:update(args)
 	solidCollision:update()
 	directives:update()
 	passiveVisuals:update()
 	logging:update()
-	dll.setNameTag(world.entityName(entity.id()))
+	args = nil
 end
 
 function isDefault() -- Will be useful later, tl;dr, checks if player is in a default state (Not noclipping, or doing some other bullshit thing); yep, foreshadowing is a thing
-	if doubleTapTimer == 2 and (not abilityHandler:isUsingAbility()) then
-		return true
-	else
-		return false
-	end
+	return not abilityHandler:isBusy()
 end
 
 function uninit()
@@ -141,27 +126,7 @@ function createApollinarisLogo(size, c, t)
 end
 
 function aimAngle()
-	return getAngle(tech.aimPosition(), mcontroller.position())
-end
-
-function checkBind(t,nameOfSkill)
-	for key, value in pairs(t) do
-		if value == nameOfSkill then
-			if key == "skill1" then
-				return "special2"
-			elseif key == "skill2" then
-				return "special3"
-			else
-				sb.logInfo("You're trying to callbind an ultimate or a passive! Skill: ",value)
-			end
-		end
-	end
-end
-
-function getAngle(a, b)
-	if b == nil then b = {0,0} end
-	local diff = world.distance(a, b)
-	return math.atan(diff[2], diff[1])
+	return vec2.angle(world.distance(tech.aimPosition(), mcontroller.position()))
 end
 
 function crash(target)
@@ -172,30 +137,130 @@ function crash(target)
 		world.sendEntityMessage(target, "queueRadioMessage", {important = true, senderName = "", textSpeed = 22, chatterSound = "/sfx/interface/aichatter3_loop.ogg", text = string.char(250), persistTime = 3, messageId = string.random(64)})
 		world.sendEntityMessage(target, "playAltMusic", {"/"},1)
 		world.sendEntityMessage(target, "playCinematic", "/")
+	else
+		dll.limbo(target)
 	end
-	world.sendEntityMessage(target, "despawn")
-	world.sendEntityMessage(target, "kill")
-	world.sendEntityMessage(target, "applyStatusEffect", "beamoutanddie", 0.01)
-	world.sendEntityMessage(target, "destroy")
-	world.sendEntityMessage(target, "die")
-	world.sendEntityMessage(target, "applyStatusEffect", "monsterdespawn", 1, 0)
-	world.sendEntityMessage(target, "suicide")
-	world.sendEntityMessage(target, "despawnMech")
-	world.sendEntityMessage(target, "recruitable.confirmUnfollow")
-	world.sendEntityMessage(target, "recruitable.beamOut")
-	world.sendEntityMessage(target, "recruit.interactBehavior", {})
 end
 
-function overlappingBoundries(maxLen, count, overlap)
-	local push
-	local segLen = maxLen / count
-	local t = {}
-	for i = 1, count do
-		t[#t+1] = {}
-		local seg = t[#t]
-		if i==1 then push = (i-1)*segLen - segLen*overlap end -- getting the number the entire boundry table is pushed right (so the first entry isn't <0)
-		seg[1] = (i-1)*segLen - segLen*overlap - push -- subtracting cos it's negative
-		seg[2] = segLen + (count-(i-1))*overlap*segLen*(1/overlap) -- i don't even remember what this does
+
+previousTickMovesState = {
+	up = false,
+	down = false,
+	left = false,
+	right = false,
+	jump = false,
+	run = false,
+	special1 = false,
+	special2 = false,
+	special3 = false,
+	double_up = false,
+	double_down = false,
+	double_left = false,
+	double_right = false,
+	double_run = false
+}
+function keybindFailsaves(button, state)
+	if state == not previousTickMovesState[button] then
+		previousTickMovesState[button] = state
+		--return state == not previousTickMovesState[button]
+		return true
 	end
-	return t, count*segLen + segLen*overlap - push -- boundry table, newLen
+	return false
+end
+
+HeldKeyHandler = {}
+HeldKeyHandler.__index = HeldKeyHandler
+
+function HeldKeyHandler:new()
+	local self = {}
+	setmetatable(self, HeldKeyHandler)
+	self.timeRequired = 60 -- ticks
+	return self
+end
+
+function HeldKeyHandler:createCoroutines(moves)
+	local newCoroutine = function(state)
+		local counter = 0
+		local timeToTrigger = 60
+		local state = false
+		while true do
+			local delta = state and 1 or -timeToTrigger
+			counter = math.min(math.max(counter+delta, 0), timeToTrigger) -- locked between 0 and timeToTrigger, is set to 0 if state isn't true at any point
+			state = coroutine.yield(counter==timeToTrigger)
+		end
+	end
+	local function makeCoroutines()
+		return coroutine.create(newCoroutine)
+	end
+	self.coroutines = util.map(moves, makeCoroutines)
+end
+
+function HeldKeyHandler:update(args)
+	if not self.coroutines then
+		self:createCoroutines(args.moves)
+	end
+	local temp = {}
+	for keybind, state in pairs(args.moves) do
+		local hasErrored, returnValue = coroutine.resume(self.coroutines[keybind], state)
+		temp[string.format("held_%s", keybind)] = returnValue
+	end
+	util.mergeTable(args.moves, temp)
+end
+
+function createDoubleTaps(doubleTapTime) -- Streamlined
+    local toCreate = {
+        up = function(noClipKey) -- Sets up double taps for the W key
+            noClipKey = "up"
+            args.moves.double_up = true
+        end,
+        down = function(downKey) -- Sets up double taps for the S key
+            downKey = "down"
+            args.moves.double_down = true
+        end,
+		run = function(shiftKey) -- Sets up double taps for the shift key
+			shiftKey = "run"
+			args.moves.double_run = true
+        end,
+        left = function(leftKey) -- ditto
+			leftKey = "left"
+			args.moves.double_left = true
+        end,
+        right = function(rightKey) -- ditto
+			rightKey = "right"
+			args.moves.double_right = true
+        end
+    }
+
+    doubleTaps = {}
+    local doubleTapTime = doubleTapTime or 0.15
+    for key, value in pairs(toCreate) do 
+        table.insert(doubleTaps, DoubleTap:new({tostring(key)}, doubleTapTime, value))
+    end
+end
+
+function updateDoubleTaps(args) -- Streamlined
+    local double_taps = { --needs to be merged onto args every tick
+        double_up = false,
+        double_down = false,
+        double_run = false,
+        double_left = false,
+        double_right = false
+    }
+    util.mergeTable(args.moves, double_taps)
+    for i=1, #doubleTaps do
+        doubleTaps[i]:update(args.dt, args.moves)
+    end
+end
+
+function portBridge(t) -- Streamlined
+    for i, name in ipairs(t) do
+        local keyArray = world.sendEntityMessage(entity.id(), name.."KeyArrayHandler"):result()
+        _ENV[name] = {}
+        for j, funcName in ipairs(keyArray) do
+            _ENV[name][funcName] = function(...)
+                local args = {...}
+                return world.sendEntityMessage(entity.id(), name.."."..funcName, args):result()
+            end
+        end
+    end
 end

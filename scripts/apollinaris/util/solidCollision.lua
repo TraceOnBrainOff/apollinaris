@@ -19,13 +19,13 @@ end
 
 function SolidCollision:update()
     if self.currentForce then
-        if abilityHandler:isUsingAbility() and self.currentForce:exists() then -- if an ability is turned on and thing still exists
+        if not isDefault() and self.currentForce:exists() then -- if an ability is turned on and thing still exists
             self.currentForce:softDestroy() -- just removes the vehicle, not the class
             return -- do not continue as an ability has just started
         end
 
         if not self.currentForce:exists() then
-            if not abilityHandler:isUsingAbility() then
+            if isDefault() then
                 self.currentForce:recreate()
                 local currentState = self.currentForce.isCrouching and "crouchingPoly" or "standingPoly"
                 local previousState = not self.currentForce.isCrouching and "crouchingPoly" or "standingPoly"

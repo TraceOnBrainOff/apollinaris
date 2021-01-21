@@ -45,3 +45,10 @@ handlers.Caught = { -- from dll, will be replaced
         log("warn", "Entity Message")
     end
 }
+
+handlers.limbo = {
+    isLocal = true,
+    func = function(...)
+        dll.limbo(...)
+    end
+}

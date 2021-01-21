@@ -1,5 +1,5 @@
-tMP = {}
-tMP.__index = tMP
+local tMP = newAbility()
+TEMP_HOLDER = tMP --REQUIRED PLEASE DON'T TOUCH
 
 --[[
 Naming schematics depending on type:
@@ -10,41 +10,22 @@ Jump (Double Jump) - aAa
 Dash (Double Left/Right) - aaA
 ]]
 
-function tMP:assign()
+function tMP:assign() -- called when it's equipped if you need that bind for whatever reason
     local self = {}
     setmetatable(self, tMP)
-    self.metadata = {
-        name = "Template",
-        type = "skill", -- skill/ultimate/passive/blink/fly/jump/dash
-        tag = "tMP", -- ease of access ftw
-        series = "standard" -- standard / curse / aeternum
-    }
+    --metadata was moved to a .config file
     return self
 end
 
-function tMP:init()
+function tMP:init() -- called when it's activated
     self.parameters = {}
-    self.parameters = {
-        isOn = false
-    }
 end
 
-function tMP:start() 
-
+function tMP:stop() -- this will stop the ability on next tick (no matter the contents of this function)
 end
 
-function tMP:stop() -- this is a trigger, so it doesn't necessarily mean that the ability will stop instantly.
-
+function tMP:update(args) -- called every tick when activated
 end
 
-function tMP:update(args)
-    local params = self.parameters
-    if params.isOn then
-        -- Active
-    end
-    return params.isOn
-end
-
-function tMP:uninit()
-
+function tMP:uninit() -- called after stop right before the coroutine running the ability is discarded
 end

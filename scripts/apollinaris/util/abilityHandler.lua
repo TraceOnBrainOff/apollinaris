@@ -1,6 +1,10 @@
+--require("/scripts/util.lua")
+
 AbilityHandler = {}
 AbilityHandler.__index = AbilityHandler
-require("/scripts/apollinaris/util/positioningGrid.lua")
+
+AbilitySlot = {}
+AbilitySlot.__index = AbilitySlot
 
 --[[
 	ultimate indicator:
@@ -27,284 +31,246 @@ require("/scripts/apollinaris/util/positioningGrid.lua")
 
 ]]
 
+function AbilitySlot:new(ability, keybind, tag)
+    local self = {}
+    setmetatable(self, AbilitySlot)
+	self.keybind = keybind
+	self.tag = tag
+	self.updateCoroutine = nil
+	self.ability = ability:assign()
+	self:applyMetadataOverrides(tag)
+    return self
+end
+
+function AbilitySlot:applyMetadataOverrides(tag)
+	local defaultMetadata = root.assetJson("/skills/defaultMetadata.json", {})
+    local defaultSettings = root.assetJson("/skills/defaultSettings.json", {})
+    self.ability.metadata = defaultMetadata
+    self.ability.metadata.settings = defaultSettings
+	local folder = util.tagToPath(tag)
+	local path = string.format("/skills/%s%s/%s.config", folder, tag, tag)
+	local abilityConfig = root.assetJson(path)
+	self.ability.metadata = util.mergeTable(self.ability.metadata, abilityConfig) -- takes the default settings and overrides every key that's specified in the ability
+end
+
+function AbilitySlot:startUpdateCoroutine()
+	if not self.ability then
+		error(string.format("%s %s has no ability!", self.slot, self.tag))
+	end
+	self.updateCoroutine = coroutine.create(function(self, args)
+		self.ability:init()
+		while true do
+			local self, args = coroutine.yield()
+			self.ability:update(args)
+			if self.ability.finished == true then
+				break
+			end
+		end
+		self.ability.finished = nil
+		self.ability:uninit()
+		return
+	end)
+	self:coroutineUpdate() -- performing init immediately after starting the ability
+end
+
+function AbilitySlot:forceStop()
+	self.updateCoroutine = nil
+end
+
+function AbilitySlot:coroutineUpdate(args)
+	if self.updateCoroutine then
+		local noErrors, returnValue = coroutine.resume(self.updateCoroutine, self, args)
+		if noErrors == false then
+			error(returnValue)
+		end
+		if coroutine.status(self.updateCoroutine) == "dead" then
+			self.updateCoroutine = nil
+		end
+	end
+end
+
+function AbilitySlot:isBusy()
+	return self.updateCoroutine ~= nil
+end
+
+-------------------------------------------------------------------------------------------------------
+
 function AbilityHandler:assign()
     local self = {}
     setmetatable(self, AbilityHandler)
-    self.activeAbility = {}
-    self.swapQueue = {}
-	self.blinkChargeup = {0, 60}
-	self.defaultSettings = root.assetJson("/skills/defaultSettings.json", {})
+	self.slotKeybinds = root.assetJson("/skills/defaultKeybinds.json", {}) -- key: slot, value: array of [args.moves key]
 	self:loadAbilities()
-	self.positioningGrid = PositioningGrid:assign()
-	self.positioningGrid:open()
+	self:equipAbilities()
+	self.swapQueue = {}
     return self
 end
 
 function AbilityHandler:update(args)
-	self:liveSwap()
-	--self.positioningGrid:update()
     self:handleInputs(args)
-    self:equipLoop("update", args)
+	self:abilityUpdates(args)
+	self.pieMenu:setPosition(mcontroller.position())
+	self.pieMenu:update(args)
 end
 
 function AbilityHandler:uninit()
-    self:equipLoop("uninit")
 end
 
-function AbilityHandler:equipLoop(mode, args)
-    for sequence, skill in pairs(self.equippedAbilities) do
-		local working, returnValue = pcall(skill[mode], skill, args)
-		if working then
-			self.activeAbility[sequence] = returnValue and true or false
-		else
-			log("error", string.format("%s has errored on %s with %s", skill.metadata.name, mode, returnValue))
-		end
-    end
-end
-
-function AbilityHandler:loadAbilities()
-    status.setStatusProperty("abilityClasses", { -- debug, no interface yet
-		auxiliary = {"tRO"},
-		ultimate = {"uTW", "iNF", "cMR"},
-		skill1 = {"rCS"},
-		skill2 = {"sGS", "tPB"},
-		blink = {"Rol"} -- size MUST be 1 on this one and all movement/aux abilities
-	})
-	status.setStatusProperty("equipmentLoadout", { -- debug, no interface yet
-		auxiliary = "tRO", 
-		ultimate = "iNF", 
-		skill1 = "rCS",
-		skill2 = "sGS",
-		blink = "Rol"
-	})
-	
-	local equipmentLoadout = status.statusProperty("equipmentLoadout", {})
-	local toUnload = {}
-	local toLoad = {}
-
-	for slotName, array in pairs((self.loadedClasses or {})) do
-		for i, abilityTag in ipairs(array) do
-			toUnload[#toUnload+1] = abilityTag
-		end
-	end
-	
-	self.loadedClasses = status.statusProperty("abilityClasses", {}) -- all of the loaded classes
-	for slotName, array in pairs(self.loadedClasses) do
-		for i, abilityTag in ipairs(array) do
-			toLoad[#toLoad+1] = abilityTag
-		end
-	end
-
-	for i=#toUnload, 1, -1 do -- unload contains all previously loaded classes
-		for j=#toLoad, 1, -1 do -- load contains all newly loaded classes (well to be loaded)
-			if toUnload[i] == toLoad[j] then -- when a class is in both in the previous loadout and new loadout, leave it there
-				table.remove(toUnload, i)
-				table.remove(toLoad, j)
-			end
-		end
-	end
-
-	self.equippedAbilities = self.equippedAbilities or {}
-	for i, tag in ipairs(toUnload) do -- doing stuff for all the classes to be removed
-		for slotName, ability in pairs(self.equippedAbilities) do -- for all currently equipped abilities (is nil during true init)
-			if tag == ability.metadata.tag then -- if the ability tag matches the tag of an ability to be removed, do
-				self.equippedAbilities[slotName] = nil -- removing the ability from equipped tags
-				equipmentLoadout[slotName] = nil -- removing them from the saved equipped slots
-			end
-		end
-		_ENV[tag] = nil -- getting rid of the entire class
-		for key, value in pairs(_SBLOADED) do -- run through the entire SBLOADED and remove the entry with the path of the ability to allow for future re-requiring. SB shitty require again
-			if key:find(tag) ~= nil then -- if the path of a tag contains the name of the tag do
-				_SBLOADED[key] = nil -- remove the path of the ability from SBLOADED
-			end
-		end
-	end
-	status.setStatusProperty("equipmentLoadout", equipmentSetup) -- save the equips after this
-
-	for i, tag in ipairs(toLoad) do
-		local folder = self:tagToPath(tag)
-		local path = string.format("/skills/%s%s/%s.lua", folder, tag, tag)
-		require(path)
-		sb.logInfo(string.format("Loaded %s from path %s", tag, path))
-	end
-	
-	for slotName, abilityTag in pairs(equipmentLoadout) do
-		if _ENV[abilityTag] then
-			self.equippedAbilities[slotName] = _ENV[abilityTag]:assign()
-			self:applyDefaultSettings(self.equippedAbilities[slotName]) -- Check for lack of default settings and add them if necessary!
-            self.activeAbility[slotName] = false -- making activeAbility actually have something
-		else
-			self.equippedAbilities = {} -- failsaving against force swapping the equipped tags so it doesn't try to assign a class that isn't loaded
-			sb.logError(string.format("Attempting to assign an ability that doesn't exist. Tag: %s", abilityTag))
-			break
-		end
-	end
-	self:createQuickswapButtons()
-end
-
-function AbilityHandler:applyDefaultSettings(slot)
-	if not slot.metadata.settings then -- failsaving against outdated abilities not having the settings table in their metadata
-		slot.metadata.settings = {}
-		log("warn", string.format("%s lacks settings in metadata!", slot.metadata.tag)) -- for ease of knowing what's up
-	end
-	local abilitySettings = slot.metadata.settings
-	for setting, defaultValue in pairs(self.defaultSettings) do -- take defaultSettings as a base, so it's vital to update it whenever additions to the engine occur!
-		if abilitySettings[setting] == nil then -- If the setting declared in defaultSettings doesn't exist do
-			abilitySettings[setting] = defaultValue -- apply the default value to the specified setting
-		end
-	end
-end
-
-function AbilityHandler:tagToPath(tag)
-	-- assume tag is 3 chars long
-	--[[
-		Naming schematics depending on type:
-		Skills (Hold F,G,H,Shift) - aAA
-		Blink (F) - Aaa
-		Fly (Double Up) - aaA
-		Jump (Double Jump) - aAa
-		Dash (Double Left/Right) - aaA
-	]]
-	local namingSchematic = {
-		aAA = "standard/",
-		Aaa = "movement/blink/",
-		aaA = "movement/fly/",
-		aAa = "movement/jump/",
-		aaA = "movement/dash/"
-	}
-	local split = {tag:match('(%a)(%a)(%a)')} -- splits aAA into {"a", "A", "A"} for example
-	local finalSTR = ""
-	for i, character in ipairs(split) do
-		if character == string.lower(character) then -- if the character is the same as the lowercase version of itself, do
-			finalSTR = finalSTR.."a"
-		else
-			finalSTR = finalSTR.."A"
-		end
-	end
-	return namingSchematic[finalSTR]
-end
-
-function AbilityHandler:isUsingAbility()
-    for slotName, bool in pairs(self.activeAbility) do
-		if bool then
-			energy:showRegenBar() -- isUsingAbility is called every tick so im just using it for that
-			return true, slotName, self.equippedAbilities[slotName].metadata.tag
-		end
-	end
-end
-
-function AbilityHandler:createQuickswapButtons()
-	local functionT = {}
-	local slotCount = status.statusProperty("skillSlotCount") or 3
-	local quarterToSlot = {"ultimate", "skill1", "auxiliary", "skill2"}
-	for quarter = 1, 4 do -- quarters, this is a constant
-		functionT[#functionT+1] = {}
-		local currentQuarter = functionT[#functionT]
-		for ring = 1, slotCount do -- leaving room for expanding this shit << good call
-			local currentTag = self.loadedClasses[quarterToSlot[quarter]][ring]
-			currentQuarter[#currentQuarter+1] = {}
-			local currentButton = currentQuarter[#currentQuarter]
-			if currentTag then
-				local tempSkill = _ENV[currentTag]:assign()
-				currentButton.name = tempSkill.metadata.name
-				currentButton.abilityTag = currentTag
-				currentButton.image = tempSkill.metadata.image
-				currentButton.func = swapAbility
-			else
-				currentButton.name = "Empty Slot"
-				currentButton.func = function() log("info", "No Skill assigned.") end
-			end
-		end
-	end
-	if quickSwitch then
-		quickSwitch:setButtons(functionT)
-	end
-	buttonLayout = functionT
-end
-
-function AbilityHandler:handleInputs(args)
-	if quickSwitch then
-		if not args.moves.run and args.moves.up then
-			quickSwitch:open()
-			return
-		end
-	end
-	if isDefault() and quickSwitch:isClosed() then
-		if self.equippedAbilities.blink then -- special case, so it's handled differently than the rest
-			if args.moves.special1 then
-				self.blinkChargeup[1] = math.min(self.blinkChargeup[1]+1, self.blinkChargeup[2])
-				return
-			else -- tldr below, if fully charged, execute ultimate, if under a quarter of the full charge, do a blink
-				if self.blinkChargeup[1] == self.blinkChargeup[2] then
-					self:startAbility("ultimate")
-				elseif self.blinkChargeup[1] < self.blinkChargeup[2]/4 and self.blinkChargeup[1] > 0 then 
-					self:startAbility("blink")
-				end
-				self.blinkChargeup[1] = 0 --debug
-			end
-		end
-
-		local sp = {
-			doubleShift = "auxiliary",
-			special2 = "skill1",
-			special3 = "skill2"
-		}
-		for keyBind, slotName in pairs(sp) do
-			if args.moves[keyBind] and self.equippedAbilities[slotName] then
-				self:startAbility(slotName)
-				self.blinkChargeup[1] = 0 -- resetting the animation to nothing to not interfere with anything visually
-				break
-			end
-		end
-	end
-end
-
-function AbilityHandler:startAbility(slot)
-	local currentAbility = self.equippedAbilities[slot]
+function AbilityHandler:startAbility(keybind)
+	local slot = self.slots[keybind] -- This is nil somehow
 	if energy:isLocked() then
 		return
 	end
-	if not currentAbility.metadata.settings.allowCustomClothing then
-		if not watchDog:checkCustomClothing() then -- making it like this won't make checkCustomClothing() get called every startAbility() call, only when it's necessary
-			log("warn", string.format("%s does not allow for equipped custom clothing!", currentAbility.metadata.name))
-			return
+	energy:changeEnergy(-slot.ability.metadata.settings.energyConsumption.amount) -- jesus fuck
+	slot:startUpdateCoroutine()
+end
+
+function AbilityHandler:handleInputsForKeybinds(keybinds)
+	local index = 0
+	for i, keybind in pairs(keybinds) do
+		local state, busy_slot = self:isBusy()
+		world.debugText(string.format("%s : %s", keybind, tostring(args.moves[keybind])), vec2.add(mcontroller.position(),index), {255,255, 255})
+		world.debugText(string.format("%s : %s", keybind, tostring(args.failsaves[keybind])), vec2.add(mcontroller.position(),-index), {255,0, 0})
+		if args.failsaves[keybind] and not args.moves[keybind] then --state and not args.failsaves[keybind]
+			if not state then
+				self:startAbility(keybind)
+				args.failsaves[keybind] = not args.failsaves[keybind]
+				return true
+			else
+				if busy_slot.ability.metadata.settings.persistent then
+					busy_slot:forceStop()
+				end
+			end
 		end
+		index = index + 1
 	end
-	local working, returnValue = pcall(currentAbility.start, currentAbility)
-	energy:changeEnergy(-currentAbility.metadata.settings.energyConsumption.amount) -- jesus fuck
-	if not working then
-		log("error", string.format("%s error @ start: %s", slot, returnValue))
-		local workingStop, returnValueStop = pcall(currentAbility.stop, currentAbility)
-		if not workingStop then
-			log("error", string.format("%s error @ stop: %s", slot, returnValueStop))
+end
+
+function AbilityHandler:handleInputs(args)
+	if args.moves.run and args.moves.up and not self:isBusy() then
+		self.pieMenu:open()
+		return
+	end
+	for i, keybind_table in ipairs(self.keybinds) do
+		for j, keybind in pairs(keybind_table) do
+			local state, busy_slot = self:isBusy()
+			--world.debugText(string.format("%s : %s", keybind, tostring(args.moves[keybind])), vec2.add(mcontroller.position(),index), {255,255, 255})
+			--world.debugText(string.format("%s : %s", keybind, tostring(args.failsaves[keybind])), vec2.add(mcontroller.position(),-index), {255,0, 0})
+			if args.failsaves[keybind] and not args.moves[keybind] then --state and not args.failsaves[keybind]
+				if not state then
+					self:startAbility(keybind)
+					args.failsaves[keybind] = not args.failsaves[keybind]
+					return
+				else
+					if busy_slot.ability.metadata.settings.persistent then
+						busy_slot.ability:stop()
+						return
+					end
+				end
+			end
 		end
 	end
 end
 
-function AbilityHandler:liveSwap() -- Review
-	local usingAbility, usingSlot, abilityInUse = self:isUsingAbility() -- usingAbility: nil/true, slotInUse: nil/slotName
-	for slotName, tag in pairs(self.swapQueue) do
-		if (slotName ~= usingSlot) or (not usingAbility) then
-			local oldAbilityTag = self.equippedAbilities[slotName].metadata.name
-			self.equippedAbilities[slotName] = nil -- making sure it's safe to assign a new one
-			self.equippedAbilities[slotName] = _ENV[tag]:assign()
-			self:applyDefaultSettings(self.equippedAbilities[slotName]) -- Apply default settings if the ability lacks them
-			self.equippedAbilities[slotName]:init()
-			local newAbilityTag = self.equippedAbilities[slotName].metadata.name
-			local savedEquips = status.statusProperty("equipmentLoadout") or {}
-			savedEquips[slotName] = tag
-			status.setStatusProperty("equipmentLoadout", savedEquips)
-			self.swapQueue[slotName] = nil
-			log("info", string.format("%s has been swapped to %s", oldAbilityTag, newAbilityTag))
-		end
+function AbilityHandler:abilityUpdates(args) --
+	local busyState, abilitySlot = self:isBusy()
+	if busyState then
+		abilitySlot:coroutineUpdate(args)
 	end
 end
 
-function swapAbility(button, boundries)
-	local abilityTag = button.abilityTag
-	local boundryToSlot = {"ultimate", "skill1", "auxiliary", "skill2"} -- passing slot names into an array to then know which slot to assign the func based on the boundries
-	boundryToSlot = boundryToSlot[boundries.angleBoundry]
-	if _ENV[abilityTag] ~= nil and abilityTag ~= abilityHandler.equippedAbilities[boundryToSlot].metadata.tag then
-		abilityHandler.swapQueue[boundryToSlot] = button.abilityTag
+function AbilityHandler:isBusy()
+	for keybind, abilitySlot in pairs(self.slots) do
+		if abilitySlot:isBusy() then
+			return true, abilitySlot
+		end
 	end
+	return false
+end
+
+
+function AbilityHandler:loadAbilities()
+    status.setStatusProperty("loadedSkills", { -- debug, no interface yet
+		double_run = {"tRO"},
+		held_special1 = {"uTW", "iNF", "cMR"},
+		special2 = {"rCS"},
+		special3 = {"sGS", "tPB"},
+		special1 = {"Rol"}, -- size MUST be 1 on this one and all movement/aux abilities
+		double_up = {"glD"}
+	})
+	status.setStatusProperty("equippedSkills", { -- debug, no interface yet
+		double_run = 1, --INDEXES IN THE THING ABOVE
+		held_special1 = 2, 
+		special2 = 1,
+		special3 = 1,
+		special1 = 1, -- Grabs the tag of the first index from the other table
+		double_up = 1
+	})
+
+	self.loadedSkills = {}
+	local maxSize = 0
+	for keybind, tag_array in pairs(status.statusProperty("loadedSkills", {})) do
+		self.loadedSkills[keybind] = {}
+		maxSize = #tag_array>maxSize and #tag_array or maxSize -- gets the max size of any array
+		for i, tag in ipairs(tag_array) do
+			local folder = util.tagToPath(tag)
+			local path = string.format("/skills/%s%s/%s.lua", folder, tag, tag)
+			require(path)
+			table.insert(self.loadedSkills[keybind], AbilitySlot:new(_ENV.TEMP_HOLDER, keybind, tag))
+			TEMP_HOLDER = nil
+		end
+	end
+	self.maxSlots = maxSize
+	local keybinds = util.keys(self.loadedSkills)
+	local held_keybinds = {}
+	local double_keybinds = {}
+	local normal_keybinds = {}
+	for i, keybind in ipairs(keybinds) do
+		if string.startsWith(keybind, "held_") then
+			table.insert(held_keybinds, keybind)
+		elseif string.startsWith(keybind, "double_") then
+			table.insert(double_keybinds, keybind)
+		else
+			table.insert(normal_keybinds, keybind)
+		end
+	end
+	self.keybinds = {held_keybinds, double_keybinds, normal_keybinds}
+	self:createPieMenu()
+end
+
+function AbilityHandler:equipAbilities()
+	local equippedSkills = status.statusProperty("equippedSkills", {}) --INDEXES IN loadedAbilities
+	self.slots = {}
+	for keybind, skill_index in pairs(equippedSkills) do
+		self.slots[keybind] = self.loadedSkills[keybind][skill_index]
+	end
+end
+
+function AbilityHandler:swapToSkill(keybind, index)
+	self.slots[keybind]:forceStop()
+	self.slots[keybind] = self.loadedSkills[keybind][index]
+end
+
+function AbilityHandler:createPieMenu() --needs sorting as loadedSkills is parsed using pairs() which randomizes the placment
+	local functionT = {}
+	local ring_count = self.maxSlots
+	local skill_keybinds = util.keys(self.loadedSkills)
+	local slice_count = #skill_keybinds
+	local rings = {}
+	for i=1, ring_count do
+		local newRing = VirtualPie_Ring:new()
+		for j, skill_keybind in ipairs(skill_keybinds) do
+			local skillSlot = self.loadedSkills[skill_keybind][i]
+			local newButton = VirtualButton:new()
+			if skillSlot then
+				newButton.name = skillSlot.ability.metadata.name
+				local function swapToThisSkill()
+					self:swapToSkill(skill_keybind, i)
+				end
+				newButton.func = swapToThisSkill
+			end
+			newRing:addButton(newButton)
+		end
+		table.insert(rings, newRing)
+	end
+	self.pieMenu = VirtualPie:new(root.assetJson("/skills/pie_menu.config"), rings)
 end

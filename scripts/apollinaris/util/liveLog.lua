@@ -6,7 +6,7 @@ function LiveLog:assign()
     setmetatable(self, LiveLog)
     self.entryTable = {}
 	self.textSize = 0.6 -- ratio for the baseOffset = 6*textSize apparently
-	self:wrapLogging()
+	--self:wrapLogging() -- fuck this royally dude 
     return self
 end
 

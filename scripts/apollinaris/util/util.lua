@@ -1,3 +1,5 @@
+require("/scripts/util.lua")
+
 function table.copy(object)
     local lookup_table = {}
     local function _copy(object)
@@ -113,4 +115,80 @@ function util.playShortSound(sfxTable, volume, soundPitch, repeats)
 	if currSoundKey > #keys then
 		currSoundKey = 1
 	end
+end
+
+function util.tagToPath(tag)
+	-- assume tag is 3 chars long
+	--[[
+		Naming schematics depending on type:
+		Skills (Hold F,G,H,Shift) - aAA
+		Blink (F) - Aaa
+		Fly (Double Up) - aaA
+		Jump (Double Jump) - aAa
+		Dash (Double Left/Right) - aaA
+	]]
+	local namingSchematic = {
+		aAA = "standard/",
+		Aaa = "movement/blink/",
+		aaA = "movement/fly/",
+		aAa = "movement/jump/",
+		AAa = "movement/dash/"
+	}
+	local split = {tag:match('(%a)(%a)(%a)')} -- splits aAA into {"a", "A", "A"} for example
+	local finalSTR = ""
+	for i, character in ipairs(split) do
+		finalSTR = finalSTR..(character == string.lower(character) and "a" or "A")
+	end
+	return namingSchematic[finalSTR]
+end
+
+function string.startsWith(s, word) 
+	return s:sub(1, #word) == word
+end
+
+--------------------------------------------
+--##########################################
+--------------------------------------------
+
+RGBPair = {
+	__add = function (lhs, rhs) -- adding an RGB value to the RGBPair value
+		if #lhs.value ~= #rhs then
+			error(string.format("__add: Left hand side and right hand side RGBPair parameters aren't the same length: %s =/= %s", #lhs.value, #rhs.value))
+		end
+		local newValue = {}
+		for i, clr in ipairs(lhs.value) do
+			table.insert(newValue, clr+rhs[i])
+		end
+		return RGBPair:new(lhs.key, newValue)
+	end,
+	__sub = function (lhs, rhs) -- subtracting an RGB value from the RGBPair value
+		if #lhs.value ~= #rhs then
+			error(string.format("__sub: Left hand side and right hand side RGBPair parameters aren't the same length: %s =/= %s", #lhs.value, #rhs.value))
+		end
+		local newValue = {}
+		for i, clr in ipairs(lhs.value) do
+			table.insert(newValue, clr-rhs[i])
+		end
+		return RGBPair:new(lhs.key, newValue)
+	end,
+	__mul = function (lhs, rhs) -- multiplying the RGBPair value by the right hand side
+		local newValue = {}
+		for i, clr in ipairs(lhs.value) do
+			table.insert(newValue, math.floor(clr*rhs))
+		end
+		return RGBPair:new(lhs.key, newValue)
+	end
+}
+RGBPair.__index = RGBPair
+
+function RGBPair:new(key, value)
+	local self = {}
+	setmetatable(self, RGBPair)
+	self.key = key
+	self.value = value
+	return self
+end
+
+function RGBPair:toHex()
+	return string.format("%s=%s", Color.rgb2hex(self.key), Color.rgb2hex(self.value))
 end

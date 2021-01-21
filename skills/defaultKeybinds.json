@@ -1,0 +1,11 @@
+{
+    "special1": ["blink"],
+    "special2": ["skill1"],
+    "special3": ["skill2"],
+    "held_special1": ["ultimate"],
+    "double_up": ["fly"],
+    "double_left": ["dash"],
+    "double_right": ["dash"],
+    "double_jump": ["jump"],
+    "double_run": ["auxilary"]
+}

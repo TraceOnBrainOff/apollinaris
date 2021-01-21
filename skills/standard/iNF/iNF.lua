@@ -1,29 +1,14 @@
-iNF = {}
-iNF.__index = iNF
+local iNF = newAbility()
+TEMP_HOLDER = iNF --REQUIRED PLEASE DON'T TOUCH
 
 function iNF:assign()
 	local self = {}
     setmetatable(self, iNF)
-    self.metadata = {
-		name = "inFamous",
-		type = "ultimate", -- skill/ultimate/passive
-		tag = "iNF",
-		settings = {
-			energyConsumption = {
-				type = "instant",
-				amount = 10
-			},
-			stopPassiveVisuals = false,
-			disableSolidHitbox = false
-		}
-	}
     return self
 end
 
 function iNF:init()
-	self.parameters = {}
     self.parameters = {
-		isOn = false,
 		castRadius = 3,
 		primaryLightning = {
 			timer = {0,0.5},
@@ -94,25 +79,17 @@ function iNF:init()
 	}
 end
 
-function iNF:start()
-	self.parameters.isOn = true
-end
-
 function iNF:stop()
-	self.parameters.isOn = false
 end
 
 function iNF:update(args)
     local params = self.parameters
-    if params.isOn then
-		self:primaryLightning(args, params)
-		self:grenade(args,params)
-		self:storm(args,params)
-		self:rocket(args, params)
-		self:miniRockets(args,params)
-		self:passiveEffect(params)
-    end
-    return params.isOn
+	self:primaryLightning(args, params)
+	self:grenade(args,params)
+	self:storm(args,params)
+	self:rocket(args, params)
+	self:miniRockets(args,params)
+	self:passiveEffect(params)
 end
 
 function iNF:uninit()
@@ -121,13 +98,13 @@ end
 
 function iNF:primaryLightning(args, params)
 	local castPos = util.trig(mcontroller.position(), params.castRadius, aimAngle())
-	if args.moves.primaryFire and not args.moves.altFire and not args.moves["down"] and args.moves.run then
+	if args.moves.primaryFire and not args.moves.altFire and not args.moves["down"] and not args.moves.run then
 		if params.primaryLightning.burstTimer[1] == 0 then
 			self:handCast()
 			for i=1,5 do
 				draw.lightning(castPos, util.trig(mcontroller.position(),params.primaryLightning.magnumRange,aimAngle()), 9, 1, 0, 200, 1.25, color:random(true), "front")
 			end
-			mcontroller.setVelocity({math.cos(math.rad(aimAngle())+math.pi)*params.primaryLightning.knockback, math.sin(math.rad(aimAngle())+math.pi)*params.primaryLightning.knockback})
+			mcontroller.setVelocity({math.cos(aimAngle()+math.pi)*params.primaryLightning.knockback, math.sin(aimAngle()+math.pi)*params.primaryLightning.knockback})
 			util.playShortSound({"/sfx/gun/brainextractor_hit.ogg"}, 1,1,0)
 			params.primaryLightning.magnumFailsafe = true
 			params.primaryLightning.burstTimer[1] = params.primaryLightning.burstTimer[2]
@@ -151,9 +128,9 @@ end
 
 function iNF:grenade(args, params)
 	local castPos = util.trig(mcontroller.position(), self.parameters.castRadius, aimAngle())
-	if args.moves.primaryFire and not args.moves.run and params.grenade.cooldown[1] == 0 then
+	if args.moves.primaryFire and args.moves.run and params.grenade.cooldown[1] == 0 then
 		self:handCast()
-		local grenadeID = world.spawnProjectile("boltguide", castPos, entity.id(), {math.cos(math.rad(aimAngle())), math.sin(math.rad(aimAngle()))}, false, {processing = "?scale=0",speed = params.grenade.throwMultiplier*world.magnitude(mcontroller.position(), tech.aimPosition()),movementSettings = params.grenade.movementParams, periodicActions = params.grenade.shape})
+		local grenadeID = world.spawnProjectile("boltguide", castPos, entity.id(), {math.cos(aimAngle()), math.sin(aimAngle())}, false, {processing = "?scale=0",speed = params.grenade.throwMultiplier*world.magnitude(mcontroller.position(), tech.aimPosition()),movementSettings = params.grenade.movementParams, periodicActions = params.grenade.shape})
 		params.grenade.cooldown[1] = params.grenade.cooldown[2]
 		params.grenade.projTable[tostring(grenadeID)] = {enId = "empty", timeToLive = params.grenade.timeToLive}
 		util.playShortSound({"/sfx/projectiles/throw_item_big.ogg"}, 1, 0.75, 0)
@@ -350,7 +327,7 @@ function iNF:rocket(args, params)
 	if args.moves.altFire and not args.moves.primaryFire and params.rocket.cooldown[1] == 0 then
 		params.rocket.cooldown[1] = params.rocket.cooldown[2]
 		local aimAng = aimAngle()
-		local rocketID = world.spawnProjectile("boltguide", castPos, entity.id(), {math.cos(math.rad(aimAng)), math.sin(math.rad(aimAng))}, false, {speed = world.magnitude(mcontroller.position(), tech.aimPosition()), periodicActions = params.rocket.shape, processing = "?scale=0"})
+		local rocketID = world.spawnProjectile("boltguide", castPos, entity.id(), {math.cos(aimAng), math.sin(aimAng)}, false, {speed = world.magnitude(mcontroller.position(), tech.aimPosition()), periodicActions = params.rocket.shape, processing = "?scale=0"})
 		params.rocket.t[tostring(rocketID)] = {timeToLive = params.rocket.timeToLive}
 		self:handCast()
 		util.playShortSound({"/sfx/gun/grenadeblast_small_electric2.ogg"}, 1,1,0)
@@ -363,7 +340,7 @@ function iNF:rocket(args, params)
 				world.callScriptedEntity(id, "projectile.setTimeToLive",1)
 			else
 				local projVelocity = world.callScriptedEntity(id, "mcontroller.velocity")
-				local velocityAngle = getAngleRad(projVelocity, {0,0})
+				local velocityAngle = vec2.angle(projVelocity, {0,0})
 				table.insert(params.rocket.miniRocket.t,self:spawnMiniRockets(projPos, velocityAngle, params))
 				draw.lightning(projPos, util.trig(projPos,world.magnitude({0,0}, projVelocity), math.deg(velocityAngle)), 3, 1, 0, 200, 2, color:random(true), "front")
 				util.playShortSound({"/sfx/gun/omnicannon_shot2.ogg"}, 1,1.75,0)
