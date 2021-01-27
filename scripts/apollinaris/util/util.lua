@@ -125,7 +125,7 @@ function util.tagToPath(tag)
 		Blink (F) - Aaa
 		Fly (Double Up) - aaA
 		Jump (Double Jump) - aAa
-		Dash (Double Left/Right) - aaA
+		Dash (Double Left/Right) - AAa
 	]]
 	local namingSchematic = {
 		aAA = "standard/",
@@ -144,6 +144,15 @@ end
 
 function string.startsWith(s, word) 
 	return s:sub(1, #word) == word
+end
+
+function coroutine.update(co, ...)
+	local a = {coroutine.resume(co, ...)}
+	if not a[1] then
+		error(a[2])
+	end
+	table.remove(a,1)
+	return table.unpack(a)
 end
 
 --------------------------------------------
@@ -192,3 +201,4 @@ end
 function RGBPair:toHex()
 	return string.format("%s=%s", Color.rgb2hex(self.key), Color.rgb2hex(self.value))
 end
+

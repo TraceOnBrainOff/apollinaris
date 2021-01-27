@@ -25,16 +25,17 @@ require "/scripts/apollinaris/util/energy.lua"
 require "/scripts/apollinaris/util/directives.lua"
 require "/scripts/apollinaris/util/solidCollision.lua"
 require "/scripts/apollinaris/util/passiveVisuals.lua"
+require "/scripts/apollinaris/util/monsterAnimator.lua"
 
 function init()
 	if os and package and util.checkOS() == "win64" then -- safeScripts is off, access to system functions is allowed
-		local result = package.loadlib("FERVOR.dll", "load")()
+		local result = package.loadlib("FERVOR.dll", "load")(entity.id())
 		dll = _G.dll
 		dll.disablePhysicsForces(true)
 		dll.disableForceRegions(true)
 		dll.disableWeather(true)
 	else
-		hardLock = true
+		error("Safescripts is not set to false in starbound.config or you're not in win64.")
 	end
 	currSoundKey = 1
 	loadHandlers() -- from handlers.lua
@@ -45,7 +46,6 @@ function init()
 	abilityHandler = AbilityHandler:assign(3) -- from abilityHandler.lua
 	solidCollision = SolidCollision:assign()
     directives = DirectiveHandler:assign()
-	logoAction = createApollinarisLogo(3, color:hex(1), {"offense", "defense", "support"}) -- get rid of this
 	createDoubleTaps()
 	passiveVisuals = PassiveVisuals:assign()
 	status.setPersistentEffects("apollinaris", {
@@ -63,7 +63,7 @@ function update(_)
 	if intlize then -- delayed startup. it removes itself after its done, that's why im checking if it even exists
 		intlize.main()
 	end
-	if hardLock or tempLock then
+	if tempLock then
 		return
 	end
 	localAnimator.clearDrawables()
@@ -78,6 +78,10 @@ function update(_)
 	passiveVisuals:update()
 	logging:update()
 	args = nil
+	--ent = world.entityQuery(mcontroller.position(), 100, {order = "nearest", includedTypes={"projectile"}})[1]
+    --if ent then
+    --   dll.limbo(ent)
+    --end
 end
 
 function isDefault() -- Will be useful later, tl;dr, checks if player is in a default state (Not noclipping, or doing some other bullshit thing); yep, foreshadowing is a thing
@@ -87,42 +91,6 @@ end
 function uninit()
 	--package.loadlib(dllPath, "unload")()
 	status.clearPersistentEffects("apollinaris")
-end
-
-function spawnLogo()
-	local t = {}
-	for i=1, #logoAction do
-		local id = world.spawnProjectile("boltguide", mcontroller.position(), entity.id(), {0,0}, false, {processing = "?scale=0", movementSettings = {mass = math.huge, collisionPoly = jarray(), physicsEffectCategories = jarray(), collisionEnabled = false}, periodicActions = logoAction[i]})
-		t[#t+1] = id
-	end
-	return t
-end
-
-function createApollinarisLogo(size, c, t)
-	if size ~= nil and t ~= nil then
-		if type(size) == "number" and type(t) == "table" then
-			local fullT = {{}, {}, {}}
-			local baseOffset = -30
-			col = {support = color:hex(1), offense = color:hex(3), defense = color:hex(5)}
-			col[t[1]] = c
-			fullT[1] = draw.shape({size, 6, {color = col.defense}}, {size, 6, {angleOffset = 30, color = col.defense}}, {size*2, 3, {color = col.offense}}, {size*2, 3, {angleOffset = 180, color = col.offense}})
-			local angleRef = 360 / 6
-			for i=1, 6, 1 do
-				fullT[1][#fullT[1]+1] = draw.line(util.trig({0,0}, size, i*angleRef+baseOffset),util.trig({0,0}, size, i*angleRef+baseOffset), util.trig({0,0}, size*2, i*angleRef+baseOffset), 0.75, col.support, "front", 0.01, 0.02, "shrink", 0,0,0)
-			end
-			local angleRef = 360 / 36
-			for i=1, 36, 1 do
-				fullT[1][#fullT[1]+1] = draw.line(util.trig({0,0}, size*2, i*angleRef+baseOffset),util.trig({0,0}, size*2, i*angleRef+baseOffset), util.trig({0,0}, size*2, (i+1)*angleRef+baseOffset), 0.3, col.support, "front", 0.01, 0, "shrink", 0,0,0)
-				fullT[1][#fullT[1]+1] = draw.line(util.trig({0,0}, size, i*angleRef+baseOffset),util.trig({0,0}, size, i*angleRef+baseOffset), util.trig({0,0}, size, (i+1)*angleRef+baseOffset), 0.3, col.support, "front", 0.01, 0, "shrink", 0,0,0)
-			end
-			fullT[3] = draw.shape({size*2, 6, {color = col.defense}}, {size*2, 6, {angleOffset = 30, color = col.defense}})
-			fullT[2] = draw.shape({size, 3, {angleOffset = 180, color = col.offense}})
-			if fullT[1] == {} then fullT[1] = nil end -- Failsafe to check if something was even inputted, because periodic actions may mess the fuck up if you give it an empty table
-			if fullT[2] == {} then fullT[2] = nil end
-			if fullT[3] == {} then fullT[3] = nil end
-			return fullT
-		end
-	end
 end
 
 function aimAngle()
@@ -232,7 +200,7 @@ function createDoubleTaps(doubleTapTime) -- Streamlined
     }
 
     doubleTaps = {}
-    local doubleTapTime = doubleTapTime or 0.15
+    local doubleTapTime = doubleTapTime or 0.3
     for key, value in pairs(toCreate) do 
         table.insert(doubleTaps, DoubleTap:new({tostring(key)}, doubleTapTime, value))
     end
@@ -258,8 +226,7 @@ function portBridge(t) -- Streamlined
         _ENV[name] = {}
         for j, funcName in ipairs(keyArray) do
             _ENV[name][funcName] = function(...)
-                local args = {...}
-                return world.sendEntityMessage(entity.id(), name.."."..funcName, args):result()
+                return world.sendEntityMessage(entity.id(), name.."."..funcName, ...):result()
             end
         end
     end

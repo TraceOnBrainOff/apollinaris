@@ -1,5 +1,5 @@
 local sGS = newAbility()
-TEMP_HOLDER = sGS --REQUIRED PLEASE DON'T TOUCH
+TEMP_HOLDER = sGS --Required for the engine to load the skill into memory due to starbound's shitty require(). Lack of this declare will crash it.
 
 function sGS:assign()
 	local self = {}
@@ -9,170 +9,190 @@ end
 
 function sGS:init()
     self.parameters = {
-		easing = easing.outQuad,
-		targetPos = {0,0},
-		dashRange = 10,
-		timer = 0,
-		isAttacking = false,
-		target = 0,
-		oldPos = mcontroller.position(),
 		windupStreaks = {
 			outerRange = 20,
 			innerRange = 1,
 			length = 3,
 			size = 1.5,
 			lengthVariation = 3
-		},
-		seekRange = 3,
-		timings = { -- util.checkBoundry: <a,b)
-			38,-- 0 - 38, nothing 
-			63, -- 38 - 63, letters
-			91, -- 63 - 91, travel
-		},
-		attackTimings = {
-			331, -- 0 - 331 - attack
-			359, -- 331 - 359 - wait
-			550 -- 359 - 550 - symbol
-		},
-		attackKeyframes = {34,69,110,144,159,171,181,193,204,214,224,233,240,245,252,257,263,268,273,278,283,288,293,298,304,309,314,318,324,330},
-		eyeTrail = {
-			circleRatio = {1,0.4},
-			radius = 2.5,
-			easing = easing.inQuad,
-			angleDiff = 90
-		},
-		comboCount = 0,
-		failsaves = {
-			windupSound = false,
-			letters = false,
-			blackScreen = false,
-			postAttack = false,
-			symbol = false
-		},
-		postAttackBlinkDist = 10,
-		explosionRadius = 7.5,
-		afterImages = {}
+		}
 	}
-	local params = self.parameters
-	params.targetPos = util.trig(mcontroller.position(), self.parameters.dashRange, aimAngle())
-	params.afterImages = self:afterImageCreator()
+	self.targetPosition = util.trig(mcontroller.position(), self.metadata.settings.dashRange, aimAngle())
+	self.coroutines = {self.dashStage, self.attackStage}
+	self.coroutine = coroutine.create(self.coroutines[1])
+	self.metadata.settings.persistent = false --hard reset it as it's a mutable variable in this instance (pose is cancellable)
+end
+
+function sGS:coroutineCallback(index)
+	if index > #self.coroutines then
+		self:stop()
+		return
+	end
+	self.coroutine = coroutine.create(self.coroutines[index])
 end
 
 function sGS:stop()
+	tech.setParentHidden(false)
+	if self.monsterAnimator then
+		self.monsterAnimator:kill()
+	end
+	if self.pose_projectile then
+		self.pose_projectile:callScriptedEntity("projectile.setTimeToLive", 0)
+	end
 	tech.setParentState()
+	self.pose_projectile = nil
+	self.monsterAnimator = nil
+	self.after_images = nil
+end
+
+function sGS:dashStage()
+	util.playShortSound({"/sfx/melee/charge_up6.ogg"}, 2, math.random(18, 22)/10, 0)
+	for i=1, self.metadata.settings.timings.chargeUp do
+		self:spawnWindupStreak(self.metadata.settings.timings.chargeUp-i)
+		mcontroller.setVelocity({0,0})
+		coroutine.yield()
+	end
+
+	self:weebyLetters()
+	util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 3, 1.05, 0)
+	util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 3, 1.05, 0)
+
+	for i=1, self.metadata.settings.timings.letters do --all this here actually does is wait out the letters animation
+		mcontroller.setVelocity({0,0})
+		coroutine.yield()
+	end
+
+	self.startingPosition = mcontroller.position()
+	util.playShortSound({"/sfx/tech/tech_rocketboots_thrust2.ogg"}, 2, 0.65, 0)
+	tech.setParentState("fly")
+	self:computeAfterimages()
+	for i=1, self.metadata.settings.timings.dash do --dash
+		local x = easing[self.metadata.settings.easing](i, self.startingPosition[1], self.targetPosition[1]-self.startingPosition[1], self.metadata.settings.timings.dash)
+		local y = easing[self.metadata.settings.easing](i, self.startingPosition[2], self.targetPosition[2]-self.startingPosition[2], self.metadata.settings.timings.dash)
+		mcontroller.setPosition({x,y})
+		mcontroller.setVelocity({0,0})
+		self.after_images:keepProjectileAlive()
+		mcontroller.controlFace(util.toDirection(self.targetPosition[1]-self.startingPosition[1]))
+		local targetId = world.entityQuery(mcontroller.position(), self.metadata.settings.queryRange, {withoutEntityId = entity.id(), boundMode = "position", includedTypes = {"monster", "npc", "vehicle", "player"}})[1]
+		if targetId then
+			self.targetId = targetId
+			self:coroutineCallback(2)
+			return
+		end
+		coroutine.yield()
+	end
+	self:coroutineCallback(3)--insta stops the ability
+	return
+end
+
+function sGS:attackStage()
+	tech.setParentHidden(true)
+	tech.setParentState()
+	self:spawnBlackScreen()
+	local hit_specification_copy = copy(self.metadata.settings.hitParticleSpecification)
+	hit_specification_copy.animation = string.format("/animations/1hswordhitspark/1hswordhitspark.animation?brightness=20?border=1;%s80;%s00", color:hex(1), color:hex(3))
+	local projectile = ParticleSpawner:new() -- contains the lightning and punch particles predefined that happen during periodic actions
+	for i, keyframe in ipairs(self.metadata.settings.attackKeyframes) do --pre-defines the projecitle
+		local endPosition = util.trig({0,0}, i/2, math.rad(math.random(360)), self.metadata.settings.positionTrigRatio) --random polar coordinates
+		local new_bolts = ParticleSpawner.lightningActions( --lightning trail from one spot to another
+			self.last_bolt_position or mcontroller.position(), 
+			endPosition, 
+			4, --displacement
+			1, --min displacement
+			0, --forks
+			math.pi/4, --forkanglerange
+			1, 
+			color:rgb(6), --can add overrides down below
+			self.metadata.settings.lightningOverrides
+		)
+		hit_specification_copy.size = math.max(3,i/5)
+		hit_specification_copy.position = endPosition
+		sb.logInfo(util.tableToString(endPosition))
+		projectile:addParticle(copy(hit_specification_copy), keyframe/60, false)
+		util.each(new_bolts, function(i,action) projectile:addParticle(action, keyframe/60, false) end)
+		self.last_bolt_position = endPosition
+	end
+
+	projectile:spawnProjectile(mcontroller.position(), {0,0})
+	for i=0, self.metadata.settings.attackKeyframes[#self.metadata.settings.attackKeyframes]+1 do --blackscreen + attack. idk if it needs to be +1 ticks to make sure the last one renders
+		if self.targetId and world.entityExists(self.targetId) then--add sounds i guess
+			if util.count(self.metadata.settings.attackKeyframes,i)>0 then --pretty much check if it's inside the table
+				util.playShortSound({"/sfx/interface/playerstation_place1.ogg"}, 2, 0.85, 0)
+			end
+			mcontroller.setPosition(world.entityPosition(self.targetId))
+			projectile:keepProjectileAlive()
+			projectile:callScriptedEntity("mcontroller.setPosition", mcontroller.position())
+		else
+			break
+		end
+		coroutine.yield()
+	end
+	self.monsterAnimator:clearChains()
+	self.monsterAnimator:kill()
+
+	util.playShortSound({"/sfx/gun/reload/rocket_reload_clip3.ogg"}, 2, 1.4, 0)
+	mcontroller.controlFace(-util.toDirection(self.lastPosition[1]-self.startingPosition[1]))
+	mcontroller.setPosition(vec2.add(self.lastPosition, {-self.metadata.settings.postAttackBlinkDist*mcontroller.facingDirection(),2}))
+	self.lastPosition = mcontroller.position() --gotta update it here
+	util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 4, 1.25, 0)
+	util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 4, 1.25, 0)
+	util.playShortSound({"/sfx/cinematics/opengate/opengate_blast.ogg"}, 2, 1.05, 0)
+	crash(self.targetId)
+	tech.setParentHidden(false)
+
+	self.metadata.settings.persistent = true
+	self:spawnPoseProjectile()
+	for i=1, self.metadata.settings.timings.pose do
+		self.pose_projectile:keepProjectileAlive()
+		self.pose_projectile:callScriptedEntity("mcontroller.setPosition", mcontroller.position())
+		mcontroller.setPosition(self.lastPosition)
+		mcontroller.setVelocity({0,0})
+		coroutine.yield()
+	end
+	self:stop()
 end
 
 function sGS:update(args)
-    local params = self.parameters
-	if not params.isAttacking then -- Everything below is for windup/letters/dash
-		params.timer = params.timer + 1
-		local stage = util.checkBoundry(params.timings, params.timer)
-		if stage == 0 then
-			if not params.failsaves.windupSound then
-				util.playShortSound({"/sfx/melee/charge_up6.ogg"}, 2, math.random(18, 22)/10, 0)
-				params.failsaves.windupSound = true
-			end
-			self:spawnWindupStreak(math.abs(params.timings[stage+1]-params.timer-1)) -- giving it more leeway
-			mcontroller.setVelocity({0,0})
-		elseif stage == 1 then
-			if not params.failsaves.letters then
-				self:weebyLetters()
-				util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 3, 1.05, 0)
-				util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 3, 1.05, 0)
-				params.failsaves.letters = true
-			end
-			mcontroller.setVelocity({0,0})
-		elseif stage == 2 then
-			if not params.startPos then
-				params.startPos = mcontroller.position()
-				tech.setParentState("fly")
-				util.playShortSound({"/sfx/tech/tech_rocketboots_thrust2.ogg"}, 2, 0.65, 0)
-			end
-			local x = params.easing(params.timer-params.timings[2], params.startPos[1], params.targetPos[1]-params.startPos[1], params.timings[3] - params.timings[2])
-			local y = params.easing(params.timer-params.timings[2], params.startPos[2], params.targetPos[2]-params.startPos[2], params.timings[3] - params.timings[2])
-			mcontroller.setPosition({x,y})
-			mcontroller.setVelocity({0,0})
-			self:afterImage()
-			self:spawnEyeTrail(mcontroller.position(), params.oldPos)
-			mcontroller.controlFace(util.toDirection(params.targetPos[1]-params.startPos[1]))
-			local enQuery = world.entityQuery(mcontroller.position(), params.seekRange, {withoutEntityId = entity.id(), boundMode = "position", includedTypes = {"monster", "npc", "vehicle", "player"}})[1]
-			if enQuery then
-				params.isAttacking = true
-				params.timer = 0
-				params.target = enQuery
-			end
-		elseif stage > 2 and params.target == 0 then
-			tech.setParentState()
-			self:stop()
-		end
-	else -- if isAttacking 
-		params.timer = params.timer + 1
-		local stage = util.checkBoundry(params.attackTimings, params.timer)
-		if stage == 0 then -- attack
-			if not params.failsaves.blackScreen then
-				params.failsaves.blackScreen = true
-				tech.setParentState("fall")
-				self:spawnBlackScreen()
-			end
-			if not params.eyeTrail.startPos then
-				params.eyeTrail.startPos = world.entityPosition(params.target) or mcontroller.position()
-				params.eyeTrail.angle = math.random(0, 360)
-				params.eyeTrail.endPos = util.trig(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), math.rad(params.eyeTrail.angle), params.eyeTrail.circleRatio)
-			end
-			local elapsedTime = params.timer - (params.attackKeyframes[params.comboCount] or 0)
-			local duration = params.attackKeyframes[params.comboCount+1]
-			local x = params.eyeTrail.easing(elapsedTime, params.eyeTrail.startPos[1], params.eyeTrail.endPos[1]-params.eyeTrail.startPos[1], duration)
-			local y = params.eyeTrail.easing(elapsedTime, params.eyeTrail.startPos[2], params.eyeTrail.endPos[2]-params.eyeTrail.startPos[2], duration)
-			local eyeTrailPos = {x,y}
-			pcall(mcontroller.setPosition(eyeTrailPos))
-			if world.magnitude(mcontroller.position(), params.oldPos) > 0.1 and params.comboCount < 25 then
-				--self:spawnEyeTrail(mcontroller.position(), params.oldPos, 0.175, 5)
-				--draw.lightning(startLine, endLine, displacement, minDisplacement, forks, forkAngleRange, width, color, layer)
-				draw.lightning(mcontroller.position(), params.oldPos, 4, 0.45, 0, 0, 2, color:hex(1), "front")
-			end
-			for i=1,#params.attackKeyframes do
-				if params.timer == params.attackKeyframes[i] then
-					if params.comboCount < 25 then
-						self:smack(params.eyeTrail.endPos)
-						params.eyeTrail.startPos = params.eyeTrail.endPos
-						params.eyeTrail.angle = params.eyeTrail.angle+180+math.random(-params.eyeTrail.angleDiff,params.eyeTrail.angleDiff)
-						params.eyeTrail.endPos = util.trig(world.entityPosition(params.target) or mcontroller.position(), params.eyeTrail.radius*math.sqrt(params.comboCount), math.rad(params.eyeTrail.angle), params.eyeTrail.circleRatio)
-					end
-					util.playShortSound({"/sfx/interface/playerstation_place1.ogg"}, 2, 0.85, 0)
-					params.comboCount = params.comboCount + 1
-				end
-			end
-		elseif stage == 1 then
-			if not params.failsaves.postAttack then
-				util.playShortSound({"/sfx/gun/reload/rocket_reload_clip3.ogg"}, 2, 1.4, 0)
-				params.failsaves.postAttack = true
-				pcall(mcontroller.controlFace(-util.toDirection(world.entityPosition(params.target)[1]-params.startPos[1])))
-				pcall(mcontroller.setPosition(vec2.add(world.entityPosition(params.target), {-params.postAttackBlinkDist*mcontroller.facingDirection(),2})))
-				mcontroller.setVelocity({0,0})
-				tech.setParentState()
-			end
-		elseif stage == 2 then -- symbol yeah
-			if not params.failsaves.symbol then
-				params.failsaves.symbol = true
-				for i=1,9 do
-					local victimPos = world.entityPosition(params.target)
-					draw.lightning(victimPos, util.trig(victimPos,params.explosionRadius, math.rad(40*i)), 3, 0.2, 0, 200, 3, color:random(true), "front")
-				end
-				util.playShortSound({"/sfx/instruments/nylonguitar/a7.ogg"}, 4, 1.25, 0)
-				util.playShortSound({"/sfx/instruments/nylonguitar/a6.ogg"}, 4, 1.25, 0)
-				util.playShortSound({"/sfx/cinematics/opengate/opengate_blast.ogg"}, 2, 1.05, 0)
-				crash(params.target)
-			end
-		elseif stage == 3 then
-			tech.setParentState()
-			self:stop()
-		end
+	if coroutine.status(self.coroutine)~="dead" then
+		coroutine.update(self.coroutine, self, args)
+		self.lastPosition = mcontroller.position()
 	end
-	params.oldPos = mcontroller.position()
 end
 
 function sGS:uninit()
 
+end
+
+function sGS:spawnPoseProjectile()
+	local pose_projectile = ParticleSpawner:new()
+	local sign = copy(self.metadata.settings.poseParticleSpecification)
+	pose_projectile:addParticle(sign, 0, true)
+
+	local particle_angle_range = 2*math.pi/self.metadata.settings.LSD_particle_density
+	for i=1, self.metadata.settings.LSD_particle_density do
+        local particle_list = {}
+		util.each(color:rgb(), function(j,rgb_color)
+		table.insert(particle_list,
+			ParticleSpawner.createParticle( 
+				ParticleSpawner.LSDAction(
+					sign.position,
+					{0,0}, 
+					util.trig({0,0}, self.metadata.settings.LSD_particle_len, particle_angle_range*i),
+					self.metadata.settings.LSD_particle_mul,
+					rgb_color,
+					5,
+					self.metadata.settings.LSD_particle_override
+				),
+				j*5/60, 
+				false
+			)
+		)
+		end)
+		pose_projectile:addLoopAction(particle_list, #color:rgb()/60, true, 10)
+	end
+	
+	pose_projectile:spawnProjectile(mcontroller.position(), {0,0})
+	self.pose_projectile = pose_projectile
 end
 
 function sGS:weebyLetters()
@@ -198,7 +218,7 @@ function sGS:weebyLetters()
 						initialVelocity = {0,0},
 					    finalVelocity = {0,0},
 					    approach = {0,0},
-					    timeToLive = (self.parameters.timings[3]-self.parameters.timings[2])/60,
+					    timeToLive = self.metadata.settings.timings.letters/60,
 					    layer = "front"
 					}
 				}
@@ -238,122 +258,40 @@ function sGS:spawnWindupStreak(remainingTime)
 	world.spawnProjectile("boltguide", mcontroller.position(), entity.id(), {0,0}, true, {timeToLive = 0.1,damageType = "NoDamage", processing = "?scalenearest=0",movementSettings = {collisionPoly = jarray(), collisionEnabled = false}, actionOnReap = {streak}})
 end
 
-function sGS:afterImage()
-	if mcontroller.facingDirection() == 1 then
-		world.spawnProjectile("invisibleprojectile", mcontroller.position(), entity.id(), {mcontroller.facingDirection(),0}, true, {timeToLive = 0.01, damageType = "NoDamage", movementSettings = {collisionPoly = jarray(), collisionEnabled = false}, actionOnReap = self.parameters.afterImages[1]})
-	elseif mcontroller.facingDirection() == -1 then
-		world.spawnProjectile("invisibleprojectile", mcontroller.position(), entity.id(), {mcontroller.facingDirection(),0}, true, {timeToLive = 0.01, damageType = "NoDamage", movementSettings = {collisionPoly = jarray(), collisionEnabled = false}, actionOnReap = self.parameters.afterImages[2]})
+function sGS:computeAfterimages()
+	local after_images = ParticleSpawner:new()
+	local portrait_actions = ParticleSpawner.entityPortraitActions(util.toDirection(self.targetPosition[1]-self.startingPosition[1])==-1, color:hex(1))
+	local gradient = util.map(color:gradient(self.metadata.settings.timings.dash), function(rgb_color) return Color.rgb2hex(rgb_color) end)
+	for tick=1, self.metadata.settings.timings.dash do
+		local local_copy = copy(portrait_actions)
+		local x = easing[self.metadata.settings.easing](tick, 0, self.targetPosition[1]-self.startingPosition[1], self.metadata.settings.timings.dash)
+		local y = easing[self.metadata.settings.easing](tick, 0, self.targetPosition[2]-self.startingPosition[2], self.metadata.settings.timings.dash)
+		local prev_x = tick ~= 1 and easing[self.metadata.settings.easing](tick-1, 0, self.targetPosition[1]-self.startingPosition[1], self.metadata.settings.timings.dash) or nil
+		local prev_y = tick ~= 1 and easing[self.metadata.settings.easing](tick-1, 0, self.targetPosition[2]-self.startingPosition[2], self.metadata.settings.timings.dash) or nil
+		util.each(local_copy, function(i, action) 
+			action.position = vec2.add(action.position, {x,y})
+			action.image = action.image.."?setcolor="..gradient[tick]
+			action.timeToLive = 0.1
+			action.destructionTime = 0.3
+			after_images:addParticle(action, tick/60, false)
+		end)
+		after_images:addParticle(ParticleSpawner.lineAction(
+			prev_x and {prev_x, prev_y+self.metadata.settings.eyeTrailVerticalOffset} or {0,self.metadata.settings.eyeTrailVerticalOffset},
+			{x,y+self.metadata.settings.eyeTrailVerticalOffset},
+			color:rgb(1),
+			2.5,
+			self.metadata.settings.eyeTrailOverrides
+		), tick/60, false)
 	end
-end
-
-function sGS:afterImageCreator()
-	local store = {{},{}}
-	local flip = ""
-	for a=1, 2 do
-		if a==2 then
-			flip = "?flipx"
-		end
-		for i,v in ipairs(world.entityPortrait(entity.id(), "full")) do	
-			store[a][#store[a]+1]= {
-				action = "particle",
-				specification = {
-					type = "textured",
-					image = v.image.. "?setcolor="..color:hex(1).."?multiply=ffffff50?scale=0.9"..flip,
-					size = 1,
-					position = {0,0},
-					flippable = true,
-					orientationLocked = false,
-					destructionAction = "fade",
-					destructionTime = 0.075,
-					initialVelocity = {0,0},
-					finalVelocity = {0,0},
-					approach = {0,0},
-					timeToLive = 0,
-					layer = "back",
-					fullbright = true
-				}
-			}
-		end
-	end
-	return store
+	after_images:spawnProjectile(mcontroller.position(), {0,0})
+	self.after_images = after_images
 end
 
 function sGS:spawnBlackScreen()
-	local timeToLive = self.parameters.attackTimings[1]/60
-	world.spawnProjectile("boltguide", vec2.add(mcontroller.position(), {0, 10}), entity.id(), {0,0}, true, {processing = "?scale=0",timeToLive = 0.5, damageType = "NoDamage", movementSettings = {collisionPoly = jarray(), collisionEnabled= false},
-		periodicActions = {
-			{
-				action = "particle",
-				time = 0.1,
-				specification = {
-					type = "ember",
-					size = 10000,
-					color = {0,0,0},
-					fullbright = true,
-					position = {0,0},
-					destructionAction = "fade",
-					destructionTime = 0,
-					initialVelocity = {0,0},
-					finalVelocity = {0,0},
-					approach = {0,0},
-					timeToLive = timeToLive-0.5,
-					layer = "front"
-				}
-			}
-		},
-		actionOnReap = {
-			{
-				action = "particle",
-				specification = {
-					type = "ember",
-					size = 10000,
-					color = {0,0,0},
-					fullbright = true,
-					position = {0,0},
-					destructionAction = "fade",
-					destructionTime = 0,
-					initialVelocity = {0,0},
-					finalVelocity = {0,0},
-					approach = {0,0},
-					timeToLive = timeToLive-0.25,
-					layer = "front"
-				}
-			}
-		}
-	})
-end
-
-function sGS:smack(pos)
-	world.spawnProjectile("boltguide", pos, entity.id(), {0,0}, true, {processing = "?multiply=FFFFFF00",timeToLive = 0, damageType = "NoDamage", movementSettings = {collisionPoly = jarray(), collisionEnabled = false},
-		actionOnReap = {
-			{
-				action = "particle",
-				specification = {
-					type = "animated",
-					animation = string.format("/animations/1hswordhitspark/1hswordhitspark.animation?brightness=20?border=1;%s80;%s00", color:hex(1), color:hex(3)),
-					size = math.max(3,self.parameters.comboCount/3),
-					position = {0,0},
-					animationCycle = 0.2,
-					destructionAction = "fade",
-					destructionTime = 0.2,
-					initialVelocity = {0,0},
-					finalVelocity = {0,0},
-					approach = {0,0},
-					timeToLive = 0.51,
-					fullbright = true,
-					layer = "front",
-					variance = {
-						rotation= 45,
-						size = 0.5,
-						angularVelocity = 180
-					}
-				}
-			}
-		}})
-end
-
-function sGS:spawnEyeTrail(pos, oldPos, destructionTime, size)
-	world.spawnProjectile("boltguide", vec2.add(mcontroller.position(), {0.14*mcontroller.facingDirection(), 0.56}), entity.id(), {0,0}, false, {processing = "?multiply=FFFFFF00",timeToLive = 0.03, damageType = "NoDamage", movementSettings = {collisionPoly = jarray(), collisionEnabled = false},
-		periodicActions = {draw.line({0,0},{0,0}, vec2.sub(oldPos,pos), size or 1.5, color:hex(1), "front", 0, destructionTime or 0.25, "shrink")}
-	})
+	self.monsterAnimator = MonsterChain:new()
+	local new_chain = {
+		startPosition = mcontroller.position(),
+		endPosition = vec2.add(mcontroller.position(), {0.125, 0})
+	}
+	self.monsterAnimator:drawChain(util.mergeTable(self.metadata.settings.blackScreenChain, new_chain)) --make the screen go black
 end

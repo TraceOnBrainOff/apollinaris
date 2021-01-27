@@ -49,9 +49,9 @@ end
 
 function easing.outInQuad(t, b, c, d)
 	if t < d / 2 then
-		return outQuad (t * 2, b, c / 2, d)
+		return easing.outQuad (t * 2, b, c / 2, d)
 	else
-		return inQuad((t * 2) - d, b + c / 2, c / 2, d)
+		return easing.inQuad((t * 2) - d, b + c / 2, c / 2, d)
 	end
 end
 
@@ -77,9 +77,9 @@ end
 
 function easing.outInCubic(t, b, c, d)
 	if t < d / 2 then
-		return outCubic(t * 2, b, c / 2, d)
+		return easing.outCubic(t * 2, b, c / 2, d)
 	else
-		return inCubic((t * 2) - d, b + c / 2, c / 2, d)
+		return easing.inCubic((t * 2) - d, b + c / 2, c / 2, d)
 	end
 end
 
@@ -105,9 +105,9 @@ end
 
 function easing.outInQuart(t, b, c, d)
 	if t < d / 2 then
-		return outQuart(t * 2, b, c / 2, d)
+		return easing.outQuart(t * 2, b, c / 2, d)
 	else
-		return inQuart((t * 2) - d, b + c / 2, c / 2, d)
+		return easing.inQuart((t * 2) - d, b + c / 2, c / 2, d)
 	end
 end
 
@@ -133,9 +133,9 @@ end
 
 function easing.outInQuint(t, b, c, d)
 	if t < d / 2 then
-		return outQuint(t * 2, b, c / 2, d)
+		return easing.outQuint(t * 2, b, c / 2, d)
 	else
-		return inQuint((t * 2) - d, b + c / 2, c / 2, d)
+		return easing.inQuint((t * 2) - d, b + c / 2, c / 2, d)
 	end
 end
 
@@ -153,9 +153,9 @@ end
 
 function easing.outInSine(t, b, c, d)
 	if t < d / 2 then
-		return outSine(t * 2, b, c / 2, d)
+		return easing.outSine(t * 2, b, c / 2, d)
 	else
-		return inSine((t * 2) -d, b + c / 2, c / 2, d)
+		return easing.inSine((t * 2) -d, b + c / 2, c / 2, d)
 	end
 end
 
@@ -189,9 +189,9 @@ end
 
 function easing.outInExpo(t, b, c, d)
 	if t < d / 2 then
-		return outExpo(t * 2, b, c / 2, d)
+		return easing.outExpo(t * 2, b, c / 2, d)
 	else
-		return inExpo((t * 2) - d, b + c / 2, c / 2, d)
+		return easing.inExpo((t * 2) - d, b + c / 2, c / 2, d)
 	end
 end
 
@@ -217,9 +217,9 @@ end
 
 function easing.outInCirc(t, b, c, d)
 	if t < d / 2 then
-		return outCirc(t * 2, b, c / 2, d)
+		return easing.outCirc(t * 2, b, c / 2, d)
 	else
-		return inCirc((t * 2) - d, b + c / 2, c / 2, d)
+		return easing.inCirc((t * 2) - d, b + c / 2, c / 2, d)
 	end
 end
 
@@ -303,9 +303,9 @@ end
 -- p: period
 function easing.outInElastic(t, b, c, d, a, p)
 	if t < d / 2 then
-		return outElastic(t * 2, b, c / 2, d, a, p)
+		return easing.outElastic(t * 2, b, c / 2, d, a, p)
 	else
-		return inElastic((t * 2) - d, b + c / 2, c / 2, d, a, p)
+		return easing.inElastic((t * 2) - d, b + c / 2, c / 2, d, a, p)
 	end
 end
 
@@ -335,9 +335,9 @@ end
 
 function easing.outInBack(t, b, c, d, s)
 	if t < d / 2 then
-		return outBack(t * 2, b, c / 2, d, s)
+		return easing.outBack(t * 2, b, c / 2, d, s)
 	else
-		return inBack((t * 2) - d, b + c / 2, c / 2, d, s)
+		return easing.inBack((t * 2) - d, b + c / 2, c / 2, d, s)
 	end
 end
 
@@ -358,22 +358,22 @@ function easing.outBounce(t, b, c, d)
 end
 
 function easing.inBounce(t, b, c, d)
-	return c - outBounce(d - t, 0, c, d) + b
+	return c - easing.outBounce(d - t, 0, c, d) + b
 end
 
 function easing.inOutBounce(t, b, c, d)
 	if t < d / 2 then
-		return inBounce(t * 2, 0, c, d) * 0.5 + b
+		return easing.inBounce(t * 2, 0, c, d) * 0.5 + b
 	else
-		return outBounce(t * 2 - d, 0, c, d) * 0.5 + c * .5 + b
+		return easing.outBounce(t * 2 - d, 0, c, d) * 0.5 + c * .5 + b
 	end
 end
 
 function easing.outInBounce(t, b, c, d)
 	if t < d / 2 then
-		return outBounce(t * 2, b, c / 2, d)
+		return easing.outBounce(t * 2, b, c / 2, d)
 	else
-		return inBounce((t * 2) - d, b + c / 2, c / 2, d)
+		return easing.inBounce((t * 2) - d, b + c / 2, c / 2, d)
 	end
 end
 

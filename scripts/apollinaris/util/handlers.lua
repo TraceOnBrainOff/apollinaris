@@ -39,16 +39,26 @@ handlers.damageRequest = {
     end
 }
 
-handlers.Caught = { -- from dll, will be replaced
-    isLocal = true,
-    func = function()
-        log("warn", "Entity Message")
-    end
-}
-
 handlers.limbo = {
     isLocal = true,
     func = function(...)
         dll.limbo(...)
+    end
+}
+
+
+handlers.caramelCake = {
+    isLocal = true,
+    func = function(...)
+        dll.sourJelly(...)
+    end
+}
+
+handlers.sendEntityMessageCallback = {
+    isLocal = false,
+    func = function(msgName, connectionId, ...)
+        sb.logWarn(tostring(msgName))
+        sb.logWarn(tostring(connectionId))
+        --log("warn", "Illegal Entity Message", string.format("Entity of connection ID %s attempting to send message type of %s", msgName, connectionId))
     end
 }

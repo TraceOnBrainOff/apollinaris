@@ -20,13 +20,9 @@ function setAutoHandlers(t)
 		local keyArray = {}
 		for key, value in pairs(_ENV[stringT]) do
 			table.insert(keyArray, key)
-			message.setHandler(stringT.."."..key, function(_, sameClient, args)
+			message.setHandler(stringT.."."..key, function(_, sameClient, ...)
 				if sameClient then
-					if args ~= nil then
-						return value(table.unpack(args))
-					else
-						return value()
-					end
+					return value(...)
 				end
 			end)
 		end

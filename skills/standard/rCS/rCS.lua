@@ -114,10 +114,7 @@ function rCS:update(args)
 	mcontroller.setPosition(self.saved_position)
 	mcontroller.setVelocity({0,0})
 	if coroutine.status(self.coroutine) ~= "dead" then
-		local isFine, returnValue = coroutine.resume(self.coroutine, self, args)
-		if not isFine then
-			error(returnValue)
-		end
+		coroutine.update(self.coroutine, self, args)
 	end
 end
 
@@ -143,6 +140,7 @@ end
 function rCS:loadOutfit(species)
 	local sPName = species.."OutfitSet"
 	local outfit = status.statusProperty(sPName)
+	sb.logInfo(util.tableToString(outfit))
 	if outfit ~= nil then
 		for key, value in pairs(outfit) do
 			if value == "none" then

@@ -30,7 +30,7 @@ function Color:updatePalette()
     status.setStatusProperty("apolloColor", defaultPalette) -- debug
     self.originalPalette = status.statusProperty("apolloColor", defaultPalette)
     self.palette = {}
-    if #defaultPalette ~= 6 then
+    if #defaultPalette == 2 then
         self.palette.rgb = self:gradient(6)
     elseif #defaultPalette == 6 then
         self.palette.rgb = defaultPalette
@@ -98,10 +98,16 @@ function Color.hex2rgba(hex)
 end
 
 function Color:hex(i)
+    if not i then
+        return self.palette.hex
+    end
     return self.palette.hex[i]
 end
 
 function Color:rgb(i)
+    if not i then
+        return self.palette.rgb
+    end
     return self.palette.rgb[i]
 end
 

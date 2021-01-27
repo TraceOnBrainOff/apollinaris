@@ -58,7 +58,8 @@ function AbilitySlot:startUpdateCoroutine()
 		error(string.format("%s %s has no ability!", self.slot, self.tag))
 	end
 	self.updateCoroutine = coroutine.create(function(self, args)
-		self.ability:init()
+		tech.setToolUsageSuppressed(true)
+		self.ability:init(self.keybind)
 		while true do
 			local self, args = coroutine.yield()
 			self.ability:update(args)
@@ -68,6 +69,7 @@ function AbilitySlot:startUpdateCoroutine()
 		end
 		self.ability.finished = nil
 		self.ability:uninit()
+		tech.setToolUsageSuppressed(false)
 		return
 	end)
 	self:coroutineUpdate() -- performing init immediately after starting the ability
@@ -79,10 +81,7 @@ end
 
 function AbilitySlot:coroutineUpdate(args)
 	if self.updateCoroutine then
-		local noErrors, returnValue = coroutine.resume(self.updateCoroutine, self, args)
-		if noErrors == false then
-			error(returnValue)
-		end
+		coroutine.update(self.updateCoroutine, self, args)
 		if coroutine.status(self.updateCoroutine) == "dead" then
 			self.updateCoroutine = nil
 		end
@@ -145,6 +144,12 @@ function AbilityHandler:handleInputsForKeybinds(keybinds)
 	end
 end
 
+function AbilityHandler:skillCancelVisuals()
+	self.skill_swap_visuals_coroutine = coroutine.create(function(self)
+		
+	end)
+end
+
 function AbilityHandler:handleInputs(args)
 	if args.moves.run and args.moves.up and not self:isBusy() then
 		self.pieMenu:open()
@@ -161,9 +166,17 @@ function AbilityHandler:handleInputs(args)
 					args.failsaves[keybind] = not args.failsaves[keybind]
 					return
 				else
+					local skill_cancel_check = self.slots[keybind].ability.metadata.settings.canSkillCancel
 					if busy_slot.ability.metadata.settings.persistent then
-						busy_slot.ability:stop()
-						return
+						if skill_cancel_check then
+							busy_slot.ability:stop()
+							self:skillCancelVisuals()
+							self:startAbility(keybind)
+							return
+						elseif busy_slot.keybind == keybind then
+							busy_slot.ability:stop()
+							return
+						end
 					end
 				end
 			end

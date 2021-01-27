@@ -380,7 +380,7 @@ function VirtualPie:hoverParse(args)
 				if not self.pressFailsafe then
 					localAnimator.playAudio(self.options.buttonPressSound)
 					self.pressFailsafe = true
-					self.pressedButton = hovered_button
+					self.pressedButton = hovered_button.func ~= nil and hovered_button or nil
 				end
 			end
 		else -- release buttons. note: this implementation might have issues when sliding the cursor across buttons while the buttons are held

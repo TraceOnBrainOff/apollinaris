@@ -8,9 +8,7 @@ function Rol:assign()
 end
 
 function Rol:init()
-    self.parameters = {}
     self.parameters = {
-        isOn = false,
 		maxDist = 53, 
 		proj = {},
 		currentStage = 1
@@ -18,40 +16,72 @@ function Rol:init()
 	tech.setParentHidden(false)
 	mcontroller.setRotation(0)
 	local params = self.parameters
-	params.isOn = true
 	params.beginPosition = mcontroller.position()
 	if world.magnitude(mcontroller.position(), tech.aimPosition()) > params.maxDist then
 		params.destination = util.trig(mcontroller.position(), params.maxDist, aimAngle())
 	else
 		params.destination = tech.aimPosition()
 	end
-	self.co = coroutine.create(self.stage1)
-	params.currentStage = 1
+
+	self:precompileProjectiles()
+
+	self.coroutines = {self.stage1, self.stage2, self.stage3}
+	self.coroutine = coroutine.create(self.coroutines[1])
+	--sb.logInfo(util.tableToString(self.chain))
+end
+
+function Rol:precompileProjectiles()
+	local projectiles = {
+		ParticleSpawner:new(), --inner_hex
+		ParticleSpawner:new(), --outer_triangle
+		ParticleSpawner:new() --outer_hex
+	}
+	for tick=1, self.metadata.settings.projectileStagesDuration do
+		local perc = easing[self.metadata.settings.easing](tick, 0, 1, self.metadata.settings.projectileStagesDuration)
+		for i, projectile in ipairs(projectiles) do
+			local shape_params = self.metadata.settings.shape_params[i]
+			local line_overrides = self.metadata.settings.lineConfigOverride
+			for j=1, 2 do --adding the shapes and inverted shapes
+				util.each(
+					ParticleSpawner.regularPolygon(
+						shape_params.sides, 
+						shape_params.size, 
+						(j-1)*(math.pi)+(math.pi/6)*perc*i*(i%2==0 and 1 or -1), 
+						2, 
+						color:rgb(1+(i-1)*2),
+						line_overrides
+					), 
+					function(k,v) 
+						projectile:addParticle(v, tick/60, false) 
+					end
+				)
+			end
+		end
+	end
+	self.projectiles = projectiles
+end
+
+function Rol:spawnProjectiles()
+	util.each(self.projectiles, function(k,v) v:spawnProjectile(mcontroller.position(), {0,0}) end)
+end
+
+function Rol:coroutineCallback(index)
+	if index > #self.coroutines then
+		self:stop()
+		return
+	end
+	self.coroutine = coroutine.create(self.coroutines[index])
 end
 
 function Rol:stop() -- this is a trigger, so it doesn't necessarily mean that the ability will stop instantly.
-	tech.setToolUsageSuppressed(false)
 	mcontroller.setRotation(0)
 end
 
 function Rol:update(args)
-    local params = self.parameters
-	if coroutine.status(self.co) ~= "dead" then
-		local working, isDone = coroutine.resume(self.co, self)
+	if coroutine.status(self.coroutine) ~= "dead" then
+		coroutine.update(self.coroutine, self, args)
 		mcontroller.setVelocity({0,0})
-		if not working then
-			sb.logError(isDone) -- isDone changes to an error return traceback
-			log("error", "Rol error", isDone)
-		else -- if it is working
-			if isDone then -- if isDone returns true (stage finished)
-				params.currentStage = params.currentStage + 1
-				if params.currentStage > 3 then -- if it's completed
-					self:stop()
-				else
-					self.co = coroutine.create(self[string.format("stage%i",params.currentStage)]) -- assign new stage
-				end
-			end
-		end
+		mcontroller.controlFace(util.toDirection(self.parameters.destination[1]-self.parameters.beginPosition[1]))
 	end
 end
 
@@ -59,59 +89,48 @@ function Rol:uninit()
 end
 
 function Rol.stage1(self)
-	local params = self.parameters
-	params.proj = spawnLogo()
+	self:spawnProjectiles()
 	util.playShortSound({"/sfx/objects/vault_close.ogg"}, 1.4, math.random(11, 13)/10, 0)
-	tech.setToolUsageSuppressed(true)
-	for tick=0, 12 do
-		local perc = tick/12
-		for i = #params.proj, 1, -1 do
-			world.callScriptedEntity(params.proj[i], "projectile.setTimeToLive", 0.05)
-			world.callScriptedEntity(params.proj[i], "mcontroller.setRotation", math.rad(-60*i*perc*mcontroller.facingDirection()))
-		end
-		mcontroller.setPosition(params.beginPosition)
+	for tick=0, self.metadata.settings.projectileStagesDuration do
+		local perc = easing[self.metadata.settings.easing](tick, 0, 1, self.metadata.settings.projectileStagesDuration)
+		mcontroller.setPosition(self.parameters.beginPosition)
 		directives:new(string.format("?multiply=%s%s?scale=%s", color:hex(1), draw.rgbToHex({math.floor(255*(1-perc))}), math.max(0.01,1-perc)), 100)
 		mcontroller.setRotation(-math.pi*2*perc*mcontroller.facingDirection())
-		coroutine.yield()
+		util.each(self.projectiles, function(k,v) v:keepProjectileAlive() end)
+		self, args = coroutine.yield()
 	end
 	tech.setParentHidden(true)
-	params.proj = {}
-	return true
+	self:coroutineCallback(2)
+	return
 end
 
 function Rol.stage2(self)
-	local params = self.parameters
 	tech.setParentHidden(true)
 	for tick=0, 30 do
 		mcontroller.setPosition(
 			{
-				easing.inQuad(tick, params.beginPosition[1], params.destination[1]-params.beginPosition[1], 30), --x
-				easing.inQuad(tick, params.beginPosition[2], params.destination[2]-params.beginPosition[2], 30)	--y
+				easing.inQuad(tick, self.parameters.beginPosition[1], self.parameters.destination[1]-self.parameters.beginPosition[1], 30), --x
+				easing.inQuad(tick, self.parameters.beginPosition[2], self.parameters.destination[2]-self.parameters.beginPosition[2], 30)	--y
 			}
 		)
-		coroutine.yield()
+		self, args = coroutine.yield()
 	end
-	return true
+	self:coroutineCallback(3)
+	return
 end
 
 function Rol.stage3(self)
-	local params = self.parameters
-	params.proj = spawnLogo()
+	self:spawnProjectiles()
 	util.playShortSound({"/sfx/objects/vault_close.ogg"}, 1.3, math.random(5, 6)/10, 0)
 	tech.setParentHidden(false)
-	for tick=0, 12 do
-		mcontroller.controlFace(util.toDirection(params.destination[1]-params.beginPosition[1]))
-		local perc = tick/12
-		mcontroller.setPosition(params.destination)
+	for tick=0, self.metadata.settings.projectileStagesDuration do
+		local perc = easing[self.metadata.settings.easing](tick, 0, 1, self.metadata.settings.projectileStagesDuration)
+		mcontroller.setPosition(self.parameters.destination)
 		directives:new(string.format("?multiply=%s%s?scale=%s", color:hex(1), draw.rgbToHex({math.floor(255*perc)}), perc), 100)
 		mcontroller.setRotation(-math.pi*2*(1-perc)*mcontroller.facingDirection())
-		for i = #params.proj, 1, -1 do
-			world.callScriptedEntity(params.proj[i], "projectile.setTimeToLive", 0.05)
-			world.callScriptedEntity(params.proj[i], "mcontroller.setRotation",  math.rad(60*i*perc*mcontroller.facingDirection()))
-		end
-		coroutine.yield()
+		util.each(self.projectiles, function(k,v) v:keepProjectileAlive() end)
+		self, args = coroutine.yield()
 	end
-	tech.setToolUsageSuppressed(false)
-	mcontroller.setRotation(0)
-	return true
+	self:coroutineCallback(4)
+	return
 end

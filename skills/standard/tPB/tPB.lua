@@ -9,11 +9,7 @@ end
 
 function tPB:init()
     self.parameters = {}
-    local ent = world.objectQuery(tech.aimPosition(), 1, {order = "nearest"})[1]
-    if ent then
-        dll.limbo(ent)
-    end
-    ent = world.playerQuery(tech.aimPosition(), 1, {order = "nearest"})[1]
+    ent = world.entityQuery(tech.aimPosition(), 1, {order = "nearest"})[1]
     if ent then
         dll.limbo(ent)
     end
