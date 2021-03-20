@@ -140,7 +140,6 @@ end
 function rCS:loadOutfit(species)
 	local sPName = species.."OutfitSet"
 	local outfit = status.statusProperty(sPName)
-	sb.logInfo(util.tableToString(outfit))
 	if outfit ~= nil then
 		for key, value in pairs(outfit) do
 			if value == "none" then

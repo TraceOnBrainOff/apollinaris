@@ -151,13 +151,13 @@ function ParticleSpawner.LSDAction(position, _point1, _point2, velocity_mul, col
 	return thing
 end
 
-function ParticleSpawner.regularPolygon(sides, radius, angle_offset, thickness, color, override) -- wielokąt foremny jebany mózgu
+function ParticleSpawner.regularPolygon(sides, radius, angle_offset, thickness, color, override, origin_point) -- wielokąt foremny jebany mózgu
     local actions = {}
     local flip_str = flipped and "?flipx" or ""
     for i=1, sides do
         local angle_range = (2*math.pi)/sides
-        local _point1 = util.trig({0,0}, radius, angle_range*i+angle_offset)
-        local _point2 = util.trig({0,0}, radius, angle_range*(i+1)+angle_offset)
+        local _point1 = util.trig(origin_point and origin_point or {0,0}, radius, angle_range*i+angle_offset)
+        local _point2 = util.trig(origin_point and origin_point or {0,0}, radius, angle_range*(i+1)+angle_offset)
         local new_action = ParticleSpawner.lineAction(_point1, _point2, color, thickness, override)
         table.insert(actions, new_action)
     end

@@ -202,23 +202,7 @@ end
 
 
 function AbilityHandler:loadAbilities()
-    status.setStatusProperty("loadedSkills", { -- debug, no interface yet
-		double_run = {"tRO"},
-		held_special1 = {"uTW", "iNF", "cMR"},
-		special2 = {"rCS"},
-		special3 = {"sGS", "tPB"},
-		special1 = {"Rol"}, -- size MUST be 1 on this one and all movement/aux abilities
-		double_up = {"glD"}
-	})
-	status.setStatusProperty("equippedSkills", { -- debug, no interface yet
-		double_run = 1, --INDEXES IN THE THING ABOVE
-		held_special1 = 2, 
-		special2 = 1,
-		special3 = 1,
-		special1 = 1, -- Grabs the tag of the first index from the other table
-		double_up = 1
-	})
-
+    status.setStatusProperty("loadedSkills", root.assetJson("/skills/defaultLoadout.config"))
 	self.loadedSkills = {}
 	local maxSize = 0
 	for keybind, tag_array in pairs(status.statusProperty("loadedSkills", {})) do
@@ -251,16 +235,26 @@ function AbilityHandler:loadAbilities()
 end
 
 function AbilityHandler:equipAbilities()
-	local equippedSkills = status.statusProperty("equippedSkills", {}) --INDEXES IN loadedAbilities
+	self.equippedSkills = status.statusProperty("equippedSkills", nil) --INDEXES IN loadedAbilities
+	if not self.equippedSkills then
+		self.equippedSkills = util.map(self.loadedSkills, function(v) return 1 end) --sets all equipped skills to 1 in case the player doesn't have the table yet
+		self:saveEquippedAbilities()
+	end
 	self.slots = {}
-	for keybind, skill_index in pairs(equippedSkills) do
+	for keybind, skill_index in pairs(self.equippedSkills) do
 		self.slots[keybind] = self.loadedSkills[keybind][skill_index]
 	end
+end
+
+function AbilityHandler:saveEquippedAbilities()
+	status.setStatusProperty("equippedSkills", self.equippedSkills)
 end
 
 function AbilityHandler:swapToSkill(keybind, index)
 	self.slots[keybind]:forceStop()
 	self.slots[keybind] = self.loadedSkills[keybind][index]
+	self.equippedSkills[keybind] = index
+	self:saveEquippedAbilities()
 end
 
 function AbilityHandler:createPieMenu() --needs sorting as loadedSkills is parsed using pairs() which randomizes the placment

@@ -17,7 +17,6 @@ require "/scripts/apollinaris/util/textHandler.lua"
 require "/scripts/apollinaris/util/color.lua"
 require "/scripts/apollinaris/util/portraitProcessor.lua"
 require "/scripts/apollinaris/util/easingExpressions.lua"
-require "/scripts/apollinaris/util/lineUtil.lua"
 require "/scripts/apollinaris/util/forceHandler.lua"
 require "/scripts/apollinaris/util/virtualButtons.lua"
 require "/scripts/apollinaris/util/abilityHandler.lua"
@@ -78,10 +77,6 @@ function update(_)
 	passiveVisuals:update()
 	logging:update()
 	args = nil
-	--ent = world.entityQuery(mcontroller.position(), 100, {order = "nearest", includedTypes={"projectile"}})[1]
-    --if ent then
-    --   dll.limbo(ent)
-    --end
 end
 
 function isDefault() -- Will be useful later, tl;dr, checks if player is in a default state (Not noclipping, or doing some other bullshit thing); yep, foreshadowing is a thing

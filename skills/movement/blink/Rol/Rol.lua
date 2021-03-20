@@ -27,7 +27,6 @@ function Rol:init()
 
 	self.coroutines = {self.stage1, self.stage2, self.stage3}
 	self.coroutine = coroutine.create(self.coroutines[1])
-	--sb.logInfo(util.tableToString(self.chain))
 end
 
 function Rol:precompileProjectiles()
@@ -94,7 +93,7 @@ function Rol.stage1(self)
 	for tick=0, self.metadata.settings.projectileStagesDuration do
 		local perc = easing[self.metadata.settings.easing](tick, 0, 1, self.metadata.settings.projectileStagesDuration)
 		mcontroller.setPosition(self.parameters.beginPosition)
-		directives:new(string.format("?multiply=%s%s?scale=%s", color:hex(1), draw.rgbToHex({math.floor(255*(1-perc))}), math.max(0.01,1-perc)), 100)
+		directives:new(string.format("?multiply=%s%s?scale=%s", color:hex(1), color.rgb2hex({math.floor(255*(1-perc))}), math.max(0.01,1-perc)), 100)
 		mcontroller.setRotation(-math.pi*2*perc*mcontroller.facingDirection())
 		util.each(self.projectiles, function(k,v) v:keepProjectileAlive() end)
 		self, args = coroutine.yield()
@@ -126,7 +125,7 @@ function Rol.stage3(self)
 	for tick=0, self.metadata.settings.projectileStagesDuration do
 		local perc = easing[self.metadata.settings.easing](tick, 0, 1, self.metadata.settings.projectileStagesDuration)
 		mcontroller.setPosition(self.parameters.destination)
-		directives:new(string.format("?multiply=%s%s?scale=%s", color:hex(1), draw.rgbToHex({math.floor(255*perc)}), perc), 100)
+		directives:new(string.format("?multiply=%s%s?scale=%s", color:hex(1), color.rgb2hex({math.floor(255*perc)}), perc), 100)
 		mcontroller.setRotation(-math.pi*2*(1-perc)*mcontroller.facingDirection())
 		util.each(self.projectiles, function(k,v) v:keepProjectileAlive() end)
 		self, args = coroutine.yield()
