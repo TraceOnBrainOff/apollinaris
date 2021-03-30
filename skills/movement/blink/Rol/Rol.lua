@@ -4,6 +4,7 @@ TEMP_HOLDER = Rol --REQUIRED PLEASE DON'T TOUCH
 function Rol:assign()
     local self = {}
     setmetatable(self, Rol)
+	self:precompileProjectile()
     return self
 end
 
@@ -23,45 +24,35 @@ function Rol:init()
 		params.destination = tech.aimPosition()
 	end
 
-	self:precompileProjectiles()
-
 	self.coroutines = {self.stage1, self.stage2, self.stage3}
 	self.coroutine = coroutine.create(self.coroutines[1])
 end
 
-function Rol:precompileProjectiles()
-	local projectiles = {
-		ParticleSpawner:new(), --inner_hex
-		ParticleSpawner:new(), --outer_triangle
-		ParticleSpawner:new() --outer_hex
-	}
+function Rol:precompileProjectile()
+	local projectile = ParticleSpawner:new()
 	for tick=1, self.metadata.settings.projectileStagesDuration do
 		local perc = easing[self.metadata.settings.easing](tick, 0, 1, self.metadata.settings.projectileStagesDuration)
-		for i, projectile in ipairs(projectiles) do
-			local shape_params = self.metadata.settings.shape_params[i]
+		local angle = 2*math.pi*perc
+		for i, shape_config in pairs(self.metadata.settings.shape_config) do
 			local line_overrides = self.metadata.settings.lineConfigOverride
-			for j=1, 2 do --adding the shapes and inverted shapes
-				util.each(
-					ParticleSpawner.regularPolygon(
-						shape_params.sides, 
-						shape_params.size, 
-						(j-1)*(math.pi)+(math.pi/6)*perc*i*(i%2==0 and 1 or -1), 
-						2, 
-						color:rgb(1+(i-1)*2),
-						line_overrides
-					), 
-					function(k,v) 
-						projectile:addParticle(v, tick/60, false) 
-					end
-				)
+			local angle_range = (2*math.pi)/shape_config.sides
+			for j=1, shape_config.sides do
+				local _point1_2d = util.trig({0,0}, shape_config.size, angle_range*j+math.rad(shape_config.angle_offset))
+				local _point2_2d = util.trig({0,0}, shape_config.size, angle_range*(j+1)+math.rad(shape_config.angle_offset))
+				local vertices = {
+					vec3["rotate_around_"..shape_config.rotation_axis]({_point1_2d[1], _point1_2d[2], 0}, angle), 
+					vec3["rotate_around_"..shape_config.rotation_axis]({_point2_2d[1], _point2_2d[2], 0}, angle)
+				}
+				util.each(vertices, function(i, vertex) table.remove(vertex, 3) end)
+				--local new_action_front = ParticleSpawner.lineAction(vec3["rotate_around_"..shape_config.rotation_axis]({_point1_2d[1], _point1_2d[2], 1}, angle), vec3["rotate_around_"..shape_config.rotation_axis]({_point2_2d[1], _point2_2d[2], 1}, angle), color:rgb(shape_config.color_index), 1, line_overrides)
+				--local new_action_back = ParticleSpawner.lineAction(vec3["rotate_around_"..shape_config.rotation_axis]({_point1_2d[1], _point1_2d[2], -1}, angle), vec3["rotate_around_"..shape_config.rotation_axis]({_point2_2d[1], _point2_2d[2], -1}, angle), color:rgb(shape_config.color_index), 1, line_overrides)
+				local new_action_front = ParticleSpawner.lineAction(vertices[1], vertices[2], color:rgb(shape_config.color_index), 1, line_overrides)
+				--local new_action_back = ParticleSpawner.lineAction(vertices[3], vertices[4], color:rgb(shape_config.color_index), 1, line_overrides)
+				projectile:addParticle(new_action_front, tick/60, false)
 			end
 		end
 	end
-	self.projectiles = projectiles
-end
-
-function Rol:spawnProjectiles()
-	util.each(self.projectiles, function(k,v) v:spawnProjectile(mcontroller.position(), {0,0}) end)
+	self.projectile = projectile
 end
 
 function Rol:coroutineCallback(index)
@@ -88,14 +79,14 @@ function Rol:uninit()
 end
 
 function Rol.stage1(self)
-	self:spawnProjectiles()
+	self.projectile:spawnProjectile(mcontroller.position(), {0,0})
 	util.playShortSound({"/sfx/objects/vault_close.ogg"}, 1.4, math.random(11, 13)/10, 0)
 	for tick=0, self.metadata.settings.projectileStagesDuration do
 		local perc = easing[self.metadata.settings.easing](tick, 0, 1, self.metadata.settings.projectileStagesDuration)
 		mcontroller.setPosition(self.parameters.beginPosition)
 		directives:new(string.format("?multiply=%s%s?scale=%s", color:hex(1), color.rgb2hex({math.floor(255*(1-perc))}), math.max(0.01,1-perc)), 100)
 		mcontroller.setRotation(-math.pi*2*perc*mcontroller.facingDirection())
-		util.each(self.projectiles, function(k,v) v:keepProjectileAlive() end)
+		self.projectile:keepProjectileAlive()
 		self, args = coroutine.yield()
 	end
 	tech.setParentHidden(true)
@@ -119,7 +110,7 @@ function Rol.stage2(self)
 end
 
 function Rol.stage3(self)
-	self:spawnProjectiles()
+	self.projectile:spawnProjectile(mcontroller.position(), {0,0})
 	util.playShortSound({"/sfx/objects/vault_close.ogg"}, 1.3, math.random(5, 6)/10, 0)
 	tech.setParentHidden(false)
 	for tick=0, self.metadata.settings.projectileStagesDuration do
@@ -127,7 +118,7 @@ function Rol.stage3(self)
 		mcontroller.setPosition(self.parameters.destination)
 		directives:new(string.format("?multiply=%s%s?scale=%s", color:hex(1), color.rgb2hex({math.floor(255*perc)}), perc), 100)
 		mcontroller.setRotation(-math.pi*2*(1-perc)*mcontroller.facingDirection())
-		util.each(self.projectiles, function(k,v) v:keepProjectileAlive() end)
+		self.projectile:keepProjectileAlive()
 		self, args = coroutine.yield()
 	end
 	self:coroutineCallback(4)

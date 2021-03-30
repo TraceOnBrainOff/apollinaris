@@ -37,7 +37,7 @@ function AbilitySlot:new(ability, keybind, tag)
 	self.keybind = keybind
 	self.tag = tag
 	self.updateCoroutine = nil
-	self.ability = ability:assign()
+	self.ability = ability
 	self:applyMetadataOverrides(tag)
     return self
 end
@@ -51,6 +51,7 @@ function AbilitySlot:applyMetadataOverrides(tag)
 	local path = string.format("/skills/%s%s/%s.config", folder, tag, tag)
 	local abilityConfig = root.assetJson(path)
 	self.ability.metadata = util.mergeTable(self.ability.metadata, abilityConfig) -- takes the default settings and overrides every key that's specified in the ability
+	self.ability = self.ability:assign()
 end
 
 function AbilitySlot:startUpdateCoroutine()
@@ -123,27 +124,6 @@ function AbilityHandler:startAbility(keybind)
 	slot:startUpdateCoroutine()
 end
 
-function AbilityHandler:handleInputsForKeybinds(keybinds)
-	local index = 0
-	for i, keybind in pairs(keybinds) do
-		local state, busy_slot = self:isBusy()
-		world.debugText(string.format("%s : %s", keybind, tostring(args.moves[keybind])), vec2.add(mcontroller.position(),index), {255,255, 255})
-		world.debugText(string.format("%s : %s", keybind, tostring(args.failsaves[keybind])), vec2.add(mcontroller.position(),-index), {255,0, 0})
-		if args.failsaves[keybind] and not args.moves[keybind] then --state and not args.failsaves[keybind]
-			if not state then
-				self:startAbility(keybind)
-				args.failsaves[keybind] = not args.failsaves[keybind]
-				return true
-			else
-				if busy_slot.ability.metadata.settings.persistent then
-					busy_slot:forceStop()
-				end
-			end
-		end
-		index = index + 1
-	end
-end
-
 function AbilityHandler:skillCancelVisuals()
 	self.skill_swap_visuals_coroutine = coroutine.create(function(self)
 		
@@ -170,6 +150,9 @@ function AbilityHandler:handleInputs(args)
 					if busy_slot.ability.metadata.settings.persistent then
 						if skill_cancel_check then
 							busy_slot.ability:stop()
+							busy_slot.ability.finished = nil
+							busy_slot.ability:uninit()
+							busy_slot:forceStop()
 							self:skillCancelVisuals()
 							self:startAbility(keybind)
 							return

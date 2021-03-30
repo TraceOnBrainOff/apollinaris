@@ -5,7 +5,6 @@
     },
     "disableSolidHitbox": false,
     "stopPassiveVisuals": false,
-    "allowCustomClothing": true,
     "persistent": false,
     "canSkillCancel": false
 }

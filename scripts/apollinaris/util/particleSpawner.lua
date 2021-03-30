@@ -65,11 +65,16 @@ function ParticleSpawner:addOptionAction(array_of_action_bodies, time, rpt)
     table.insert(self.options, newOption)
 end
 
-function ParticleSpawner:spawnProjectile(position, aimVector)
+function ParticleSpawner:merge()
     if not self.assembled then
         self.merged = util.mergeLists(util.mergeLists(self.actions, self.loops), self.options)
         self.assembled = true
     end
+end
+
+function ParticleSpawner:spawnProjectile(position, aimVector)
+    self:merge()
+    self.id = nil
     self.id = world.spawnProjectile("boltguide", position, entity.id(), aimVector, false, {timeToLive = 1, processing = "?crop=0;0;0;0", damageType = "noDamage", power=0, speed=0, actionOnReap=jarray(), movementSettings={gravityMultiplier=0}, periodicActions=self.merged, piercing=true})
     return self.id
 end
@@ -96,7 +101,7 @@ function ParticleSpawner.entityPortraitActions(flipped, color, overrides)
     for i,v in ipairs(world.entityPortrait(entity.id(), "full")) do	
         local new_action = {
             type = "textured",
-            image = v.image.. "?setcolor="..color.."?multiply=ffffff50"..flip_str,
+            image = v.image.. "?setcolor="..table.copy(color).."?multiply=ffffff50"..flip_str,
             size = 1,
             position = {0,0},
             flippable = true,
@@ -112,7 +117,7 @@ function ParticleSpawner.entityPortraitActions(flipped, color, overrides)
             rotate = true
         }
         if overrides then
-            util.mergeTable(new_action, overrides) --added overrides KEAGAN
+            ParticleSpawner.copyMerge(new_action, overrides) --added overrides KEAGAN
         end
         table.insert(actions, new_action)
     end
@@ -122,9 +127,9 @@ end
 function ParticleSpawner.lineAction(_point1, _point2, color, thickness, override)
     local new_action = {
         type = "streak",
-        color = color,
+        color = table.copy(color),
         rotate = true,
-        light = color,
+        light = table.copy(color),
         timeToLive = 0,
         fullbright = true,
         destructionTime = 0,
@@ -139,7 +144,7 @@ function ParticleSpawner.lineAction(_point1, _point2, color, thickness, override
         }
     }
     if override then
-        util.mergeTable(new_action, override)
+        ParticleSpawner.copyMerge(new_action, override)
     end
     return new_action
 end
@@ -153,7 +158,6 @@ end
 
 function ParticleSpawner.regularPolygon(sides, radius, angle_offset, thickness, color, override, origin_point) -- wielokąt foremny jebany mózgu
     local actions = {}
-    local flip_str = flipped and "?flipx" or ""
     for i=1, sides do
         local angle_range = (2*math.pi)/sides
         local _point1 = util.trig(origin_point and origin_point or {0,0}, radius, angle_range*i+angle_offset)
@@ -195,6 +199,102 @@ function ParticleSpawner.lightningActions(startLine, endLine, displacement, minD
 	local action_list = {}
 	drawLightningRecursive(action_list, startLine, endLine, displacement, minDisplacement, forks, forkAngleRange, width, color, overrides)
 	return action_list
+end
+
+function ParticleSpawner:dump() --DUMPS THE PERIODIC ACTIONS!!!
+	self:merge()
+    sb.logInfo(sb.printJson(self.merged, 1))
+end
+
+function ParticleSpawner.copyMerge(t1, t2)
+    for k, v in pairs(t2) do
+        if type(v) == "table" and type(t1[k]) == "table" then
+            ParticleSpawner.copyMerge(t1[k] or {}, v)
+        else
+            t1[k] = table.copy(v)
+        end
+    end
+end
+
+function ParticleSpawner.createSwooshBezier(inner, outer, overrides)
+    local params = {
+        steps = 20,
+        maxTime = 0.15,
+        resolution = 24,
+    }
+    if overrides then
+        util.mergeTable(params, overrides)
+    end
+    local projectile = ParticleSpawner:new()
+    local inner_bezier = Bezier:init()
+    local outer_bezier = Bezier:init()
+    local steps = params.steps
+    local maxTime = params.maxTime
+    local resolution = params.resolution
+    inner_bezier:createCubicCurve(inner[1],inner[2],inner[3],inner[4], steps)
+    outer_bezier:createCubicCurve(outer[1],outer[2],outer[3],outer[4], steps)
+    local inner_points = inner_bezier:getPoints() --list of points
+    local outer_points = outer_bezier:getPoints() --list of points
+    local gradient = color:gradient(resolution)
+    gradient[#gradient] = {255,255,255}
+    for orbit=1, resolution do
+        local tTLDiff = math.random(1,10)/100
+        for line=1,steps-1 do
+            local width = orbit==resolution and easing.inBounce(line, 1.75, 2.25, steps-1) or 1.75
+            local dTime = orbit==resolution and 0.3 or easing.inQuad(line, tTLDiff, 0.3, steps-1)
+            local tTL = easing.inOutQuad(line, tTLDiff, maxTime, steps-1)
+            local x1 = easing.linear(orbit, inner_points[line][1], outer_points[line][1]-inner_points[line][1], resolution)
+            local y1 = easing.linear(orbit, inner_points[line][2], outer_points[line][2]-inner_points[line][2], resolution)
+            local x2 = easing.linear(orbit, inner_points[line+1][1], outer_points[line+1][1]-inner_points[line+1][1], resolution)
+            local y2 = easing.linear(orbit, inner_points[line+1][2], outer_points[line+1][2]-inner_points[line+1][2], resolution)
+            projectile:addParticle(ParticleSpawner.lineAction({x1,y1}, {x2,y2}, gradient[orbit], width, {timeToLive=tTL, destructionTime=dTime, destructionAction="shrink", light = {0,0,0}}), 0, false)
+        end
+    end
+    return projectile
+end
+
+function ParticleSpawner.createSwooshPolar(origin, overrides)
+    local params = {
+        inner_radius = 0,
+        outer_radius = 1,
+        angle_range = 2*math.pi,
+        angle_offset = 0,
+        steps = 20,
+        maxTime = 0.15,
+        resolution = 24,
+    }
+    if overrides then
+        util.mergeTable(params, overrides)
+    end
+    local projectile = ParticleSpawner:new()
+    local steps = params.steps
+    local step = params.angle_range/steps
+    local maxTime = params.maxTime
+    local resolution = params.resolution
+    local inner_points = {} --list of points
+    for i=1, steps do
+        table.insert(inner_points, util.trig(origin, params.inner_radius, params.angle_offset+i*step))
+    end
+    local outer_points = {} --list of points
+    for i=1, steps do
+        table.insert(outer_points, util.trig(origin, params.outer_radius, params.angle_offset+i*step))
+    end
+    local gradient = color:gradient(resolution)
+    gradient[#gradient] = {255,255,255}
+    for orbit=1, resolution do
+        local tTLDiff = math.random(1,10)/100
+        for line=1,steps-1 do
+            local width = orbit==resolution and easing.inBounce(line, 1.75, 2.25, steps-1) or 1.75
+            local dTime = orbit==resolution and 0.3 or easing.inQuad(line, tTLDiff, 0.3, steps-1)
+            local tTL = easing.inOutQuad(line, tTLDiff, maxTime, steps-1)
+            local x1 = easing.linear(orbit, inner_points[line][1], outer_points[line][1]-inner_points[line][1], resolution)
+            local y1 = easing.linear(orbit, inner_points[line][2], outer_points[line][2]-inner_points[line][2], resolution)
+            local x2 = easing.linear(orbit, inner_points[line+1][1], outer_points[line+1][1]-inner_points[line+1][1], resolution)
+            local y2 = easing.linear(orbit, inner_points[line+1][2], outer_points[line+1][2]-inner_points[line+1][2], resolution)
+            projectile:addParticle(ParticleSpawner.lineAction({x1,y1}, {x2,y2}, gradient[orbit], width, {timeToLive=tTL, destructionTime=dTime, destructionAction="shrink", light = {0,0,0}}), 0, false)
+        end
+    end
+    return projectile
 end
 
 --[[

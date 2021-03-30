@@ -1,6 +1,8 @@
 require "/skills/newAbility.lua"
 
 require "/scripts/vec2.lua" -- Vector bullshit
+require "/scripts/apollinaris/util/vec3.lua" -- bet ya weren't expecting that
+require "/scripts/apollinaris/util/bezier.lua" -- line-maker 3000
 require "/scripts/rect.lua"
 require "/scripts/util.lua" -- Util, the usual
 require "/scripts/status.lua" -- Mostly here for applying status effects and using status.setProperty/getProperty which is used for talking to the interface and various checks
@@ -31,7 +33,7 @@ function init()
 		local result = package.loadlib("FERVOR.dll", "load")(entity.id())
 		dll = _G.dll
 		dll.disablePhysicsForces(true)
-		dll.disableForceRegions(true)
+		dll.disableForceRegions(false)
 		dll.disableWeather(true)
 	else
 		error("Safescripts is not set to false in starbound.config or you're not in win64.")

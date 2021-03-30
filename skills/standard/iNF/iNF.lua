@@ -91,7 +91,6 @@ function iNF:precompileProjectiles()
 	end
 	local projectiles = {}
 	local gradient = color:gradient(self.metadata.settings.projectile.horizontal_size) -- the 19 is the initial origin point + 3 hexagons. 10 is the amount of vertices per side extension
-	local rain_gradient = color:gradient(#self.metadata.settings.rainParticleSpecifications)
 	util.each(vertices, function(i, vector) --for every origin point, make a high resolution poly
 		local projectile = ParticleSpawner:new()
 		local index = math.ceil((i-19)/10)
@@ -101,12 +100,6 @@ function iNF:precompileProjectiles()
 		local fog_copy = copy(self.metadata.settings.fogParticleSpecification)
 		fog_copy.position = {0,0}
 		projectile:addParticle(fog_copy, math.random(10,20)/10, true)
-		util.each(self.metadata.settings.rainParticleSpecifications, function(i, specification)
-			local rain_copy = copy(specification)
-			rain_copy.position = {0,0}
-			rain_copy.color = rain_gradient[i]
-			projectile:addParticle(rain_copy, math.random(30,40)/10, true)
-		end)
 		projectile.vector = vector
 		table.insert(projectiles, copy(projectile))
 	end)

@@ -17,7 +17,7 @@ function tMP:assign() -- called when it's equipped if you need that bind for wha
     return self
 end
 
-function tMP:init() -- called when it's activated
+function tMP:init(keybind) -- called when it's activated
     self.parameters = {}
 end
 
