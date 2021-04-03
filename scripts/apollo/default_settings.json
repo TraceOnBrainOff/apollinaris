@@ -1,0 +1,52 @@
+{
+    "default_color": [
+        [255,0,193],
+        [0,255,249]
+    ],
+    "key_skill_dict": {
+        "special1": ["blink"],
+        "special2": ["skill1"],
+        "special3": ["skill2"],
+        "held_special1": ["ultimate"],
+        "double_up": ["fly"],
+        "double_left": ["dash"],
+        "double_right": ["dash"],
+        "double_jump": ["jump"],
+        "double_run": ["auxilary"]
+    },
+    "default_skill_loadout": { // debug, no interface yet
+        "double_run" : ["tRO"],
+        "held_special1" : ["uTW", "iNF", "cMR"],
+        "special2" : ["rCS", "iMP"],
+        "special3" : ["sGS", "tPB", "sLR"],
+        "special1" : ["Rol"],
+        "double_up" : ["glD", "flT"]
+    },
+    "skill_pie_menu_settings": {
+        "innerRadius": 4, //size of the hole inside - the higher, the larger
+        "outerRadius": 16, //max size of the pie menu - the higher, the larger
+        "polygonSmoothing": 2, //how closely the resulting polygon will be to a full circle, the higher, the more circle-like it will become. CAN DIP FRAMES IF TOO LARGE.
+        "closeAfterButtonPress": true, //closes the pie menu upon first button pressed if true
+        "ringTransitionTime": 15, //Amount of time spent PER RING on opening and closing in ticks
+        "popUpHoverTime": 5, //amount of ticks you need to hover over a button to make the pop up appear
+        "ringEasingMethod": "inOutSine", //Method from easing.lua that's used to interpolate the size as it opens/closes
+        "buttonPressSound": "/sfx/gun/reload/machinepistol_reload_clip1.ogg",
+        "buttonReleaseSound": "/sfx/gun/reload/sniper_reload_clip2.ogg"
+    },
+    "default_pie_menu_popup_settings": {
+        "textSize" : 0.75,
+        "fadeTime" : 20, //Ticks
+        "hoverTime": 5, //Ticks
+        "boxPadding": 0.25
+    },
+    "default_skill_settings": {
+        "energyConsumption": {
+            "type": "instant", //instant, drain
+            "amount": 0 //Positive numbers (% of energy drained)
+        },
+        "disableSolidHitbox": false,
+        "stopPassiveVisuals": false,
+        "persistent": false,
+        "canSkillCancel": false
+    }
+}

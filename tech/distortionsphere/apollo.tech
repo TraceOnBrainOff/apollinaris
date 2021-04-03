@@ -1,0 +1,14 @@
+{
+  "name" : "apollo",
+  "type" : "head",
+
+  "scripts" : ["/scripts/apollo/apollo.lua"],
+  "animator" : "sonicsphere.animation",
+
+  "description" : "Aliquid amandus",
+  "shortDescription" : "Apollo",
+  "rarity" : "Essential",
+  "icon" : "/tech/distortionsphere.png",
+
+  "chipCost" : 0
+}
