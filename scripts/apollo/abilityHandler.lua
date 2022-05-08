@@ -4,31 +4,6 @@ AbilityHandler.__index = AbilityHandler
 AbilitySlot = {}
 AbilitySlot.__index = AbilitySlot
 
---[[
-	ultimate indicator:
-	several things to note here while making this:
-	this has to be offset by a multiplier (just like the passive indicator) since i don't want this thing to appear during short taps for blinking, so 0.2 should be a good number
-	charge timer has to be increased for the animation to play out slower, plus it will look cooler
-
-	to the meat of the shit
-	making a topographic-esque effect with three waves  with decreasing sharpness and alpha as it gets further away (do it via panty dropping recursion buddy)
-
-	[optional but might copy the shockwave framework from that one animtion thing i made in the past (the loading incidator's shockwave for the interface) to signal that it's ready, just one shockwave on a failsafe when timer reaches full]
-	^ bonus weeaboo points
-
-	add sound effects to this, but it will require MATHS (and probably failsaves)
-
-	add local animator particle effects maybe?
-
-	also make ubw an ultimate and racechanging an ability
-
-	parameter for edge count should also be a thing
-
-	a variable for cycle multiplier and offset for the wave effect
-
-
-]]
-
 function AbilitySlot:new(abilityHandler, ability, keybind, tag)
     local self = {}
     setmetatable(self, AbilitySlot)
@@ -101,6 +76,7 @@ end
 function AbilityHandler:assign()
     local self = {}
     setmetatable(self, AbilityHandler)
+	self:createActivateProjectile()
 	self.slotKeybinds = table.copy(default_settings.key_skill_dict) -- key: slot, value: array of [args.moves key]
 	self:loadAbilities()
 	self:equipAbilities()
@@ -121,6 +97,9 @@ function AbilityHandler:update(args)
 			self.gauge_animation = nil
 		end
 	end
+	if not self.gauge_hidden then
+		apolloGauge:update(args)
+	end
 end
 
 function AbilityHandler:uninit()
@@ -128,10 +107,11 @@ end
 
 function AbilityHandler:startAbility(keybind)
 	local slot = self.slots[keybind] -- This is nil somehow
-	if energy:isLocked() then
-		return
-	end
-	energy:changeEnergy(-slot.ability.metadata.settings.energyConsumption.amount) -- jesus fuck
+	--if energy:isLocked() then
+	--	return
+	--end
+	--energy:changeEnergy(-slot.ability.metadata.settings.energyConsumption.amount) -- jesus fuck
+	self.activate_projectile:spawnProjectile(mcontroller.position(), {0,0})
 	slot:startUpdateCoroutine()
 end
 
@@ -145,18 +125,12 @@ function AbilityHandler:toggleGauges()
 		local actionBar_displacement = {0,30}
 		local teamBar_displacement = {-30,30}
 		local bars_move_max_time = 60
-		local easing_type = "inQuad"
-		--dll.setApolloGaugePosition({20,-20})
-		local draw_action = {
-			begin = {0,40},
-			['end'] = {1340,40},
-			color = {255,0,0,255},
-			lineWidth = 3.0
-		}
+		local easing_type = "outQuart"
+		local gauge_easing_type = "inQuad"
 		if self.gauge_hidden then --animation for hiding the bars
 			self.gauge_hidden = false
+			local gauge_line_count = apolloGauge.line_density-1
 			for tick=1, bars_move_max_time do
-				dll.addGaugeDrawAction(draw_action)
 				local actionBar_position = {
 					easing[easing_type](tick, 0, actionBar_displacement[1], bars_move_max_time),
 					easing[easing_type](tick, 0, actionBar_displacement[2], bars_move_max_time)
@@ -165,14 +139,16 @@ function AbilityHandler:toggleGauges()
 					easing[easing_type](tick, 0, teamBar_displacement[1], bars_move_max_time),
 					easing[easing_type](tick, 0, teamBar_displacement[2], bars_move_max_time)
 				}
+				local apollo_gauge_value = math.floor(easing[gauge_easing_type](tick, 0, gauge_line_count, bars_move_max_time))
 				dll.setActionBarPosition(actionBar_position)
 				dll.setTeamBarPosition(teamBar_position)
+				apolloGauge:rawSetDisplayedValue(apollo_gauge_value)
 				self = coroutine.yield()
 			end
+			apolloGauge:rawSetDisplayedValue(gauge_line_count)
 		else --animation for showing the bars
 			self.gauge_hidden = true
 			for tick=1, bars_move_max_time do
-				dll.addGaugeDrawAction(draw_action)
 				local actionBar_position = {
 					easing[easing_type](tick, actionBar_displacement[1], -actionBar_displacement[1], bars_move_max_time),
 					easing[easing_type](tick, actionBar_displacement[2], -actionBar_displacement[2], bars_move_max_time)
@@ -327,4 +303,53 @@ function AbilityHandler:createPieMenu() --needs sorting as loadedSkills is parse
 		table.insert(rings, newRing)
 	end
 	self.pieMenu = VirtualPie:new(table.copy(default_settings.skill_pie_menu_settings), rings)
+end
+
+function AbilityHandler:createActivateProjectile()
+	local new_projectile = ParticleSpawner:new()
+	local color_dark = color:rgb(1)
+	local color_light = color:rgb(6)
+	local max_time = 60
+	local rotation_delta = 2*math.pi
+	local size_delta = 5
+	local easing_type = "inOutQuart"
+	local line_count = 6
+	local angle_step = 2*math.pi/line_count
+	local radius = 6
+	local line_overrides = {light = {0,0,0}} -- can add
+	local elipse_ratio = {2,1}
+	for tick = 1, max_time do
+		local angle_diff = easing[easing_type](tick, 0, rotation_delta, max_time)
+		local size_diff = easing[easing_type](tick, 0, size_delta, max_time)
+		local alpha_diff = easing[easing_type](tick, 255, -255, max_time) --fades from full to nothing
+		color_dark[4] = alpha_diff
+		color_light[4] = alpha_diff
+		for i = 0, line_count-1 do
+			new_projectile:addParticle(
+				ParticleSpawner.lineAction(
+					util.trig({0,0}, radius+size_diff, angle_diff+angle_step*i, {1,1.5}), 
+					util.trig({0,0}, radius+size_diff, angle_diff+angle_step*(i+1), {1,1.5}), 
+					color_dark,
+					2.5,
+					line_overrides
+				), 
+				tick/60, 
+				false
+			)
+		end
+		for i = 0, line_count-1 do
+			new_projectile:addParticle(
+				ParticleSpawner.lineAction(
+					util.trig({0,0}, radius+size_diff, -angle_diff+angle_step*i+math.pi/2, {1.5,1}), 
+					util.trig({0,0}, radius+size_diff, -angle_diff+angle_step*(i+1)+math.pi/2, {1.5,1}), 
+					color_light,
+					2.5,
+					line_overrides
+				), 
+				tick/60, 
+				false
+			)
+		end
+	end
+	self.activate_projectile = new_projectile
 end

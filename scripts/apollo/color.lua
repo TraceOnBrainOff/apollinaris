@@ -101,14 +101,14 @@ function Color:hex(i)
     if not i then
         return self.palette.hex
     end
-    return self.palette.hex[i]
+    return table.copy(self.palette.hex[i])
 end
 
 function Color:rgb(i)
     if not i then
         return self.palette.rgb
     end
-    return self.palette.rgb[i]
+    return table.copy(self.palette.rgb[i])
 end
 
 function Color:random(hex, amount)

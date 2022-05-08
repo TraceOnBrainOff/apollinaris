@@ -89,8 +89,7 @@ function sGS:attackStage()
 	tech.setParentHidden(true)
 	tech.setParentState()
 	self:spawnBlackScreen()
-	local hit_specification_copy = copy(self.metadata.settings.hitParticleSpecification)
-	hit_specification_copy.animation = string.format("/animations/1hswordhitspark/1hswordhitspark.animation?brightness=20?border=1;%s80;%s00", color:hex(1), color:hex(3))
+	local hit_projectile = sGS.hitProjectile(self)
 	local projectile = ParticleSpawner:new() -- contains the lightning and punch particles predefined that happen during periodic actions
 	for i, keyframe in ipairs(self.metadata.settings.attackKeyframes) do --pre-defines the projecitle
 		local endPosition = util.trig({0,0}, i/2, math.rad(math.random(360)), self.metadata.settings.positionTrigRatio) --random polar coordinates
@@ -105,10 +104,9 @@ function sGS:attackStage()
 			color:rgb(6), --can add overrides down below
 			self.metadata.settings.lightningOverrides
 		)
-		hit_specification_copy.size = math.max(3,i/5)
-		hit_specification_copy.position = endPosition
-		sb.logInfo(util.tableToString(endPosition))
-		projectile:addParticle(copy(hit_specification_copy), keyframe/60, false)
+		local hit_projectile_nest = ParticleSpawner.createNestedInstance(hit_projectile, keyframe/60, 20/60, false)
+		hit_projectile_nest.offset = endPosition
+		projectile:addAction(hit_projectile_nest)
 		util.each(new_bolts, function(i,action) projectile:addParticle(action, keyframe/60, false) end)
 		self.last_bolt_position = endPosition
 	end
@@ -294,4 +292,20 @@ function sGS:spawnBlackScreen()
 		endPosition = vec2.add(mcontroller.position(), {0.125, 0})
 	}
 	self.monsterAnimator:drawChain(util.mergeTable(self.metadata.settings.blackScreenChain, new_chain)) --make the screen go black
+end
+
+function sGS.hitProjectile(self)
+	local hit_projectile_resolution = 3 -- make it into a config setting
+	local duration = 20 -- make it into a config setting
+	local gradient = color:gradient(duration)
+	local maxRadius = 4
+	local newProjectile = ParticleSpawner:new()
+	for tick=1, duration do
+		local perc = tick/duration
+		local shape = ParticleSpawner.regularPolygon(hit_projectile_resolution, perc*maxRadius, perc*math.pi, 1, gradient[tick], {destructionTime=0.25, width = 3})
+		util.each(shape, function(i, action)
+			newProjectile:addParticle(action, tick/60, false)
+		end)
+	end
+	return newProjectile
 end

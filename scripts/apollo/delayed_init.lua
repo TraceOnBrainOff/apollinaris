@@ -1,22 +1,21 @@
-intlize = {
+delayed_init = {
     timer = 2
 }
 tempLock = true
-intlize.main = function()
-    intlize.timer = intlize.timer - 1
-    if intlize.timer == 0 then
+delayed_init.main = function()
+    delayed_init.timer = delayed_init.timer - 1
+    if delayed_init.timer == 0 then
         tempLock = false
-        pcall(intlize.tocall)
+        pcall(delayed_init.tocall)
         if not util.isVanillaRace() then
             tempLock = true
         end
-        intlize = nil
+        delayed_init = nil
     end
 end
 
-intlize.tocall = function()
+delayed_init.tocall = function()
     dll.setActionBarPosition({0,0})
 	dll.setTeamBarPosition({0,0})
-    energy:setEnergyBarUnusableColor()
     portBridge({"player", "localAnimator", "playerPrimary"}) -- player and localAnimator are from the deployment script, playerPrimary is from player_primary.lua
 end

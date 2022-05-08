@@ -48,5 +48,19 @@
         "stopPassiveVisuals": false,
         "persistent": false,
         "canSkillCancel": false
+    },
+    "apollo_gauge_settings":{
+        "y_offset": 335, //x is handled automatically so you don't get to touch that
+        "length": 445,
+        "animation_cycle": 120, //ticks
+        "gradient_count": 12,
+        "line_density": 60,
+        "max_value": 100,
+        "perlin_settings":{
+            "type": "perlin",
+            "amplitude": 25,
+            "frequency": 0.02,
+            "gain": 2
+        }
     }
 }

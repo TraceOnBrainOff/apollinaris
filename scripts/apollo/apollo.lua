@@ -21,7 +21,7 @@ require "/scripts/apollo/easingExpressions.lua" -- helper lib for interpolated m
 require "/scripts/apollo/forceHandler.lua" -- helper lib for physics collision automation
 require "/scripts/apollo/virtualButtons.lua" -- helper lib for pie menu creation and managment
 require "/scripts/apollo/abilityHandler.lua" -- engine lib for handling the skill logic
-require "/scripts/apollo/energy.lua" -- engine lib for handling the gauge behavior
+require "/scripts/apollo/apolloGauge.lua" -- engine lib for handling the gauge behavior
 require "/scripts/apollo/directives.lua" -- helper lib for applying tech directives on top of the player entity
 require "/scripts/apollo/solidCollision.lua" -- helper lib for creating a physics collision that follows the player
 require "/scripts/apollo/passiveVisuals.lua" -- helper lib with passive visuals for the player entity (breathing animation, live chat, etc)
@@ -42,14 +42,14 @@ function init()
 	loadHandlers() -- from handlers.lua
 	logging = LiveLog:assign()
 	color = Color:assign()
-	energy = Energy:assign()
+	apolloGauge = ApolloGauge:assign()
 	heldKeyHandler = HeldKeyHandler:new()
 	abilityHandler = AbilityHandler:assign() -- from abilityHandler.lua
 	solidCollision = SolidCollision:assign()
     directives = DirectiveHandler:assign()
 	createDoubleTaps()
 	passiveVisuals = PassiveVisuals:assign()
-	status.setPersistentEffects("apollinaris", {
+	status.setPersistentEffects("apollo", {
 		{stat = "breathProtection", amount = 1},
 		{stat = "biomeradiationImmunity", amount = 1},
 		{stat = "biomecoldImmunity", amount = 1},
@@ -61,8 +61,8 @@ args = {}
 function update(_)
 	args = _ -- making it global cos doubletaps don't have access to args for whatever unholy reason and i wanna do something cheeky
 	args.moves.run = not args.moves.run
-	if intlize then -- delayed startup. it removes itself after its done, that's why im checking if it even exists
-		intlize.main()
+	if delayed_init then -- delayed startup. it removes itself after its done, that's why im checking if it even exists
+		delayed_init.main()
 	end
 	if tempLock then
 		return
@@ -73,7 +73,6 @@ function update(_)
 	updateDoubleTaps(args) -- Handles updating the double taps
 	args.failsaves = util.mapWithKeys(args.moves, keybindFailsaves)
 	abilityHandler:update(args)
-	energy:update()
 	solidCollision:update()
 	directives:update()
 	passiveVisuals:update()
@@ -86,8 +85,11 @@ function isDefault() -- Will be useful later, tl;dr, checks if player is in a de
 end
 
 function uninit()
-	status.clearPersistentEffects("apollinaris")
-	solidCollision.currentForce:recreate() --destroys the vehicle
+	dll.setActionBarPosition({0,0})
+	dll.setTeamBarPosition({0,0})
+	status.clearPersistentEffects("apollo")
+	status.clearPersistentEffects("apollinaris") -- clearing it for people who still have the deprecated name
+	solidCollision.currentForce:softDestroy() --destroys the vehicle
 end
 
 function aimAngle()

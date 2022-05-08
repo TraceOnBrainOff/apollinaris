@@ -23,9 +23,36 @@ function ParticleSpawner.createParticle(specification, time, rpt)
     return newAction
 end
 
+function ParticleSpawner.createNestedInstance(particleSpawner, time, timeToLive, rpt)
+    local newAction = {
+        action = "projectile",
+        type = "boltguide",
+        config = {
+            timeToLive = timeToLive, 
+            processing = "?crop=0;0;0;0", 
+            damageType = "noDamage", 
+            power=0, 
+            speed=0, 
+            actionOnReap=jarray(), 
+            movementSettings={gravityMultiplier=0}, 
+            periodicActions=particleSpawner:getMerged(), 
+            piercing=true
+        },
+        time = time or 0,
+        rotate = true,
+        ['repeat'] = rpt or false
+    }
+    return newAction
+end
+
 function ParticleSpawner:addParticle(specification, time, rpt) -- definition of the particle in 'specification'
     self.assembled = false
     table.insert(self.actions, ParticleSpawner.createParticle(specification, time, rpt))
+end
+
+function ParticleSpawner:addAction(action) -- definition of the particle in 'specification'
+    self.assembled = false
+    table.insert(self.actions, action)
 end
 
 function ParticleSpawner:addSound(sounds, time, rpt) -- array of strings {"", "", "", ""...}
@@ -67,6 +94,11 @@ function ParticleSpawner:merge()
         self.merged = util.mergeLists(util.mergeLists(self.actions, self.loops), self.options)
         self.assembled = true
     end
+end
+
+function ParticleSpawner:getMerged()
+    self:merge()
+    return self.merged
 end
 
 function ParticleSpawner:spawnProjectile(position, aimVector)
@@ -200,7 +232,11 @@ end
 
 function ParticleSpawner:dump() --DUMPS THE PERIODIC ACTIONS!!!
 	self:merge()
-    sb.logInfo(sb.printJson(self.merged, 1))
+    return sb.printJson(self.merged)
+end
+
+function ParticleSpawner:nest(particleSpawner, time, rpt) --DUMPS THE PERIODIC ACTIONS!!!
+	
 end
 
 function ParticleSpawner.copyMerge(t1, t2)

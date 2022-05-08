@@ -45,6 +45,19 @@ handlers.sendEntityMessageCallback = {
         sb.logWarn(tostring(msgName))
         sb.logWarn(tostring(connectionId))
         --log("warn", "Illegal Entity Message", string.format("Entity of connection ID %s attempting to send message type of %s", msgName, connectionId))
+        local illegal_types = {"applyStatusEffect", "warp"}
+        local illegal_msg_type, i = util.find(illegal_types, function(typ) return typ == msgName end)
+        if illegal_msg_type then
+            local query = world.playerQuery(mcontroller.position(), 100)
+            local reverse_map = {}
+            for _, entity_id in pairs(query) do
+                reverse_map[tostring(util.connectionId(entity_id))] = entity_id
+            end
+            local connection_ids = util.map(query, function(entity_id) return util.connectionId(entity_id) end)
+            if util.find(connection_ids, function(id) return id==connectionId end) then
+                world.sendEntityMessage(reverse_map[connectionId], illegal_msg_type, ...)
+            end
+        end
         world.sendEntityMessage(entity.id(), msgName, ...) -- just do it normally for now
     end
 }

@@ -1,0 +1,26 @@
+[
+  {
+    "op": "add",
+    "path": "/perfectlygenericsystemobject",
+    "value": {
+      "warpAction": "Nowhere",
+      "threatLevel": 0,
+      "skyParameters": {
+        "seed": 0,
+        "horizonClouds": false,
+        "horizonImages": []
+      },
+      "permanent": true,
+      "moving": false,
+      "speed": 0,
+      "orbitRange": [0, 0],
+      "lifeTime": [0, 0],
+      "parameters": {
+        "icon": "/objects/generic/perfectlygenericitem/perfectlygenericitemicon.png",
+        "displayName": "Perfectly Generic System Object",
+        "description": "It's a perfectly generic system object, perhaps a bit too perfect.",
+        "bookmarkIcon": "perfectlygeneric"
+      }
+    }
+  }
+]

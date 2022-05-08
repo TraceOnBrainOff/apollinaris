@@ -57,6 +57,7 @@ function applyDamageRequest(damageRequest)
 	
 	if world.sendEntityMessage(entity.id(), "player_primary_handshake"):result() == true then
 		damageRequest = world.sendEntityMessage(entity.id(), "damageRequest", damageRequest):result()
+		if not damageRequest then return {} end
 	end
 
 	status.addEphemeralEffects(damageRequest.statusEffects, damageRequest.sourceEntityId)

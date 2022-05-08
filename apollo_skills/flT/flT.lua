@@ -18,8 +18,8 @@ end
 function flT:init()
     self.parameters = {}
     self.parameters = {
-        speed = 10,
-        control = 10
+        speed = 50,
+        control = 50
     }
     self.parameters.glideCoroutine = coroutine.create(function(self, args)
         while true do

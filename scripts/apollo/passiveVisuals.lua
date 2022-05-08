@@ -28,8 +28,6 @@ end
 function PassiveVisuals:showCursors()
     for i,v in pairs(world.playerQuery(mcontroller.position(), 50)) do
         local x,y = dll.getCursorPos(v)
-        world.debugText(tostring(x), vec2.add(entity.position(), 1), {255,255,255,255})
-        world.debugText(tostring(y), vec2.add(entity.position(), 5), {255,255,255,255})
         world.debugLine(world.entityPosition(v), {x,y}, {255,255,255,255})
     end
 end
